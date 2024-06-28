@@ -1,6 +1,8 @@
 import torch
 import numpy as np
 
+class Gaussian
+
 class NoiseSchedule:
     
     def __init__(self, size) -> None:
@@ -23,13 +25,26 @@ class NoiseSchedule:
             
         return alpha
         
-    def get(self, index):
+    def get_beta(self, index):
+        if index >= self._size:
+            raise IndexError("[get] out of index :", index, " / size :", self._size)
         return self._variances[index]
+    
+    def get_alpha(self, index):
+        if index >= self._size:
+            raise IndexError("[get] out of index :", index, " / size :", self._size)
+        return self._total_variances[index]
+
 
 class ForwardEncoder:
 
     def __init__(self, noise_schedule) -> None:
         self.noise_schedule = noise_schedule
+        
+    def noise(self, data, time_step):
+        alpha = self.noise_schedule.get_alpha(time_step)
+        epsilon = 0
+        return np.sqrt(1 - alpha) * data + np.sqrt(alpha) * epsilon
         
         
     def sample_data_point(self):
