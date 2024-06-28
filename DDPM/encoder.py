@@ -12,8 +12,8 @@ class NoiseSchedule:
         # alpha
         self._total_variances = self._calculate_total_variances()
         
-        print(self._variances)
-        print(self._total_variances)
+        # print(self._variances)
+        # print(self._total_variances)
         
     def _calculate_total_variances(self):
         alpha, curr = [], 1
@@ -26,7 +26,23 @@ class NoiseSchedule:
     def get(self, index):
         return self._variances[index]
 
-class Encoder:
+class ForwardEncoder:
 
     def __init__(self, noise_schedule) -> None:
         self.noise_schedule = noise_schedule
+        
+        
+    def sample_data_point(self):
+        pass
+    
+    def sample_timestep(self):
+        pass
+    
+    def sample_noise(self):
+        pass
+    
+    def evaluate_noisy_latent(self):
+        pass
+    
+    def compute_loss(self):
+        pass
