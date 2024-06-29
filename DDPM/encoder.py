@@ -1,39 +1,29 @@
 import torch
 import numpy as np
 
-class Gaussian
-
 class NoiseSchedule:
     
-    def __init__(self, size) -> None:
-        self._size = size
+    def __init__(self, num_timesteps, beta_start=0.0001, beta_end=0.02) -> None:
+        self._size = num_timesteps
+        self._betas = torch.linspace(beta_start, beta_end, num_timesteps) #.to(device)
+        self._alphas = self._calculate_alphas()
         
-        # beta
-        self._variances = [i / (size + 1) for i in range(1, size + 1)]
-    
-        # alpha
-        self._total_variances = self._calculate_total_variances()
+        # print(self._betas)
+        # print(self._alphas)
         
-        # print(self._variances)
-        # print(self._total_variances)
-        
-    def _calculate_total_variances(self):
-        alpha, curr = [], 1
-        for i in range(self._size):
-            curr *= 1 - self._variances[i]
-            alpha.append(curr)
-            
-        return alpha
+    def _calculate_alphas(self):
+        self._alphas = torch.cumprod(1 - self._betas, axis=0)
+        return self._alphas
         
     def get_beta(self, index):
         if index >= self._size:
             raise IndexError("[get] out of index :", index, " / size :", self._size)
-        return self._variances[index]
+        return self._betas[index]
     
     def get_alpha(self, index):
         if index >= self._size:
             raise IndexError("[get] out of index :", index, " / size :", self._size)
-        return self._total_variances[index]
+        return self._alphas[index]
 
 
 class ForwardEncoder:
@@ -43,9 +33,8 @@ class ForwardEncoder:
         
     def noise(self, data, time_step):
         alpha = self.noise_schedule.get_alpha(time_step)
-        epsilon = 0
-        return np.sqrt(1 - alpha) * data + np.sqrt(alpha) * epsilon
-        
+        epsilon = torch.randn(data.shape)
+        return np.sqrt(alpha) * data + np.sqrt(1 - alpha) * epsilon
         
     def sample_data_point(self):
         pass
