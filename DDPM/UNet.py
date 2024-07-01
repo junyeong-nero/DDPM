@@ -41,7 +41,10 @@ class UNet(nn.Module):
         """Upsampling followed by convolution"""
         return nn.ConvTranspose2d(in_channels, out_channels, kernel_size=2, stride=2)
 
-    def forward(self, x):
+    def forward(self, x, t=0):
+        
+        # TODO : add timestep t into UNet.
+        
         # Contracting path
         enc1 = self.enc1(x)  # (B, 64, 28, 28)
         enc2 = self.enc2(F.max_pool2d(enc1, kernel_size=2))  # (B, 128, 14, 14)

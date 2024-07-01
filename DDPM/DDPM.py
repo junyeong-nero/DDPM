@@ -5,6 +5,30 @@ import Utils
 import torch, torchvision
 from torch.utils.data import DataLoader
 
+class NoiseSchedule:
+    
+    def __init__(self, num_timesteps, beta_start=0.0001, beta_end=0.02) -> None:
+        self._size = num_timesteps
+        self._betas = torch.linspace(beta_start, beta_end, num_timesteps) #.to(device)
+        self._alphas = self._calculate_alphas()
+        
+        # print(self._betas)
+        # print(self._alphas)
+        
+    def _calculate_alphas(self):
+        self._alphas = torch.cumprod(1 - self._betas, axis=0)
+        return self._alphas
+        
+    def get_beta(self, index):
+        if index >= self._size:
+            raise IndexError("[get] out of index :", index, " / size :", self._size)
+        return self._betas[index]
+    
+    def get_alpha(self, index):
+        if index >= self._size:
+            raise IndexError("[get] out of index :", index, " / size :", self._size)
+        return self._alphas[index]
+
 class DDPM:
     
     def __init__(self, num_timesteps, train_set) -> None:
@@ -12,7 +36,7 @@ class DDPM:
         self.num_timesteps = num_timesteps
         
         # alpha, betas
-        self.noise_schedule = Encoder.NoiseSchedule(num_timesteps=num_timesteps)
+        self.noise_schedule = NoiseSchedule(num_timesteps=num_timesteps)
         
         # forward encoder
         self.encoder = Encoder.ForwardEncoder(noise_schedule=self.noise_schedule)
@@ -20,10 +44,10 @@ class DDPM:
         # DNN for predicting total noise
         self.g = UNet(in_channels=1, out_channels=1)
         
-        self.optimizer = torch.optim.SGD(self.g.parameters(), lr=0.004, momentum=0.9)
+        self.optimizer = torch.optim.SGD(self.g.parameters(), lr=0.0001, momentum=0.9)
 
         # Create data loaders for our datasets; shuffle for training, not for validation
-        self.training_loader = DataLoader(train_set, batch_size=4, shuffle=True)
+        self.training_loader = DataLoader(train_set, batch_size=8, shuffle=True)
         
         self.lossFunction = torch.nn.MSELoss()
         
@@ -41,16 +65,18 @@ class DDPM:
 
         for i, data in enumerate(self.training_loader):
             
+            # sampled timestep
+            t = torch.randint(0, self.num_timesteps, [1, 1]).item()
+            
+            # inputs = [bs, 1, 28, 28]
             inputs = data['image'].type(torch.float32)
             inputs = inputs.unsqueeze(1)
-            # inputs = [bs, 1, 28, 28]
             
-            self.optimizer.zero_grad()
-            outputs = self.g(inputs)            
             # outputs = [bs, 1, 28, 28]
+            self.optimizer.zero_grad()
+            outputs = self.g(inputs, t) 
             
-            noised_image, epsilon = self.encoder.noise(inputs, torch.randint(0, self.num_timesteps, [1, 1]).item())
-            
+            noised_image, epsilon = self.encoder.noise(inputs, t)
             # Utils.print_image(noised_image[0][0])
 
             # Compute the loss and its gradients
@@ -62,6 +88,7 @@ class DDPM:
 
             # Gather data and report
             running_loss += loss.item()
+            
             print(i, loss.item())
             
             if i % 1000 == 999:
