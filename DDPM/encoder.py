@@ -33,20 +33,7 @@ class ForwardEncoder:
         
     def noise(self, data, time_step):
         alpha = self.noise_schedule.get_alpha(time_step)
-        epsilon = torch.randn(data.shape)
-        return np.sqrt(alpha) * data + np.sqrt(1 - alpha) * epsilon
         
-    def sample_data_point(self):
-        pass
-    
-    def sample_timestep(self):
-        pass
-    
-    def sample_noise(self):
-        pass
-    
-    def evaluate_noisy_latent(self):
-        pass
-    
-    def compute_loss(self):
-        pass
+        # torch.randn ~ N(0, 1)
+        epsilon = torch.randn(data.shape)
+        return np.sqrt(alpha) * data + np.sqrt(1 - alpha) * epsilon, epsilon

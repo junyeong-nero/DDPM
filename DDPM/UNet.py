@@ -80,11 +80,13 @@ class UNet(nn.Module):
         diff_width = (width - target_width) // 2
         return tensor[:, :, diff_height:diff_height + target_height, diff_width:diff_width + target_width]
 
-# 모델 초기화 예시
-unet = UNet(in_channels=1, out_channels=1)
 
-# 임의의 입력 예시
-x = torch.randn(1, 1, 28, 28)  # Batch size = 1, 채널 수 = 1, 이미지 크기 = 28x28
-output = unet(x)
+if __name__ == '__main__':
+    # 모델 초기화 예시
+    unet = UNet(in_channels=1, out_channels=1)
 
-print(output.shape)  # torch.Size([1, 1, 28, 28])
+    # 임의의 입력 예시
+    x = torch.randn(1, 1, 28, 28)  # Batch size = 1, 채널 수 = 1, 이미지 크기 = 28x28
+    output = unet(x)
+
+    print(output.shape)  # torch.Size([1, 1, 28, 28])

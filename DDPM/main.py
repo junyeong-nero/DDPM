@@ -1,9 +1,8 @@
 import torch 
 import Encoder
-import numpy as np
 from datasets import load_dataset
-from PIL import Image
-from matplotlib import pyplot as plt
+from DDPM import DDPM 
+import Utils
 
 
 # CONTSANTS
@@ -15,21 +14,28 @@ encoder = Encoder.ForwardEncoder(noise_schedule=noise_schedule)
 
 def extract_sample_image(index=0):
     data = load_dataset("ylecun/mnist")
-    image = torch.from_numpy(np.array(data['train'][index]['image']))
+    data = data.with_format("torch")
+    image = data['train'][index]['image']
+    Utils.print_image(image)
     return image
-    
-def print_image(image):
-    plt.figure(figsize=(5,5))
-    plt.imshow(image)
-    plt.show()
 
-def T_noise(image):
+def T_noise():
+    image = torch.load('sample_image.pt')
     # print_image(image)
-    for i in range(0, TIME_STEPS, 10):
-        noised_image = encoder.noise(image, i)
+    for i in range(0, TIME_STEPS, 100):
+        noised_image, epsilon = encoder.noise(image, i)
         print(i)
-        print_image(noised_image)
+        Utils.print_image(noised_image)
+        # print_image(epsilon)
+        
+def T_train():
+    train_data = load_dataset("ylecun/mnist", split="train").with_format("torch")
+    valid_data = load_dataset("ylecun/mnist", split="test").with_format("torch")
+    D = DDPM(num_timesteps=1000, train_set=train_data)
+    D.train()
+    
 
 if __name__ == '__main__':
-    image = torch.load('sample_image.pt')
-    T_noise(image)
+    # extract_sample_image()
+    # T_noise()
+    T_train()
