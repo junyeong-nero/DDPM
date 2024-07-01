@@ -43,48 +43,48 @@ class UNet(nn.Module):
 
     def forward(self, x):
         # Contracting path
-        enc1 = self.enc1(x)
-        enc2 = self.enc2(F.max_pool2d(enc1, kernel_size=2))
-        enc3 = self.enc3(F.max_pool2d(enc2, kernel_size=2))
-        enc4 = self.enc4(F.max_pool2d(enc3, kernel_size=2))
+        enc1 = self.enc1(x)  # (B, 64, 28, 28)
+        enc2 = self.enc2(F.max_pool2d(enc1, kernel_size=2))  # (B, 128, 14, 14)
+        enc3 = self.enc3(F.max_pool2d(enc2, kernel_size=2))  # (B, 256, 7, 7)
+        enc4 = self.enc4(F.max_pool2d(enc3, kernel_size=2))  # (B, 512, 3, 3)
 
         # Bottleneck
-        bottleneck = self.bottleneck(F.max_pool2d(enc4, kernel_size=2))
+        bottleneck = self.bottleneck(F.max_pool2d(enc4, kernel_size=2))  # (B, 1024, 1, 1)
 
         # Expanding path
-        dec4 = self.upconv4(bottleneck)
-        dec4 = torch.cat((dec4, self.crop_tensor(enc4, dec4)), dim=1)
-        dec4 = self.dec4(dec4)
+        dec4 = self.upconv4(bottleneck)  # (B, 512, 2, 2)
+        dec4 = torch.cat((dec4, self.center_crop(enc4, dec4.size(2), dec4.size(3))), dim=1)
+        dec4 = self.dec4(dec4)  # (B, 512, 2, 2)
 
-        dec3 = self.upconv3(dec4)
-        dec3 = torch.cat((dec3, self.crop_tensor(enc3, dec3)), dim=1)
-        dec3 = self.dec3(dec3)
+        dec3 = self.upconv3(dec4)  # (B, 256, 4, 4)
+        dec3 = torch.cat((dec3, self.center_crop(enc3, dec3.size(2), dec3.size(3))), dim=1)
+        dec3 = self.dec3(dec3)  # (B, 256, 4, 4)
 
-        dec2 = self.upconv2(dec3)
-        dec2 = torch.cat((dec2, self.crop_tensor(enc2, dec2)), dim=1)
-        dec2 = self.dec2(dec2)
+        dec2 = self.upconv2(dec3)  # (B, 128, 8, 8)
+        dec2 = torch.cat((dec2, self.center_crop(enc2, dec2.size(2), dec2.size(3))), dim=1)
+        dec2 = self.dec2(dec2)  # (B, 128, 8, 8)
 
-        dec1 = self.upconv1(dec2)
-        dec1 = torch.cat((dec1, self.crop_tensor(enc1, dec1)), dim=1)
-        dec1 = self.dec1(dec1)
+        dec1 = self.upconv1(dec2)  # (B, 64, 16, 16)
+        dec1 = torch.cat((dec1, self.center_crop(enc1, dec1.size(2), dec1.size(3))), dim=1)
+        dec1 = self.dec1(dec1)  # (B, 64, 16, 16)
 
-        out = self.out_conv(dec1)
-        return out
+        # Final upsampling to get 28x28 output
+        output = F.interpolate(dec1, size=(28, 28), mode='bilinear', align_corners=False)
+        output = self.out_conv(output)
+        return output
 
-    def crop_tensor(self, encoder_tensor, decoder_tensor):
-        """Crop the encoder tensor to match the shape of the decoder tensor"""
-        _, _, H, W = decoder_tensor.size()
-        enc_H, enc_W = encoder_tensor.size()[2], encoder_tensor.size()[3]
-        crop_H, crop_W = (enc_H - H) // 2, (enc_W - W) // 2
-        return encoder_tensor[:, :, crop_H:crop_H + H, crop_W:crop_W + W]
+    def center_crop(self, tensor, target_height, target_width):
+        """Center crop tensor to target size"""
+        _, _, height, width = tensor.size()
+        diff_height = (height - target_height) // 2
+        diff_width = (width - target_width) // 2
+        return tensor[:, :, diff_height:diff_height + target_height, diff_width:diff_width + target_width]
 
+# 모델 초기화 예시
+unet = UNet(in_channels=1, out_channels=1)
 
-if __name__ == '__main__':
-    # 모델 초기화 예시
-    unet = UNet(in_channels=1, out_channels=1)
+# 임의의 입력 예시
+x = torch.randn(1, 1, 28, 28)  # Batch size = 1, 채널 수 = 1, 이미지 크기 = 28x28
+output = unet(x)
 
-    # 임의의 입력 예시
-    x = torch.randn(1, 1, 28, 28)  # Batch size = 1, 채널 수 = 1, 이미지 크기 = 28x28
-    output = unet(x)
-
-    print(output.shape)  # torch.Size([1, 1, 28, 28])
+print(output.shape)  # torch.Size([1, 1, 28, 28])
