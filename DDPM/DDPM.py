@@ -65,12 +65,15 @@ class DDPM:
 
         for i, data in enumerate(self.training_loader):
             
-            # sampled timestep
-            t = torch.randint(0, self.num_timesteps, [1, 1]).item()
             
             # inputs = [bs, 1, 28, 28]
             inputs = data['image'].type(torch.float32)
             inputs = inputs.unsqueeze(1)
+            
+            batch_size = inputs.shape[0]
+            
+            # sampled timestep
+            t = torch.randint(0, self.num_timesteps, (batch_size, ))
             
             # outputs = [bs, 1, 28, 28]
             self.optimizer.zero_grad()

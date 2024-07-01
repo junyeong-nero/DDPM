@@ -1,7 +1,7 @@
 import torch 
-import Encoder
+from Encoder import ForwardEncoder
 from datasets import load_dataset
-from DDPM import DDPM 
+from DDPM import DDPM, NoiseSchedule
 import Utils
 
 def extract_sample_image(index=0):
@@ -13,8 +13,8 @@ def extract_sample_image(index=0):
 
 def T_noise():
     TIME_STEPS = 1000
-    noise_schedule = Encoder.NoiseSchedule(num_timesteps=TIME_STEPS)
-    encoder = Encoder.ForwardEncoder(noise_schedule=noise_schedule)
+    noise_schedule = NoiseSchedule(num_timesteps=TIME_STEPS)
+    encoder = ForwardEncoder(noise_schedule=noise_schedule)
     image = torch.load('sample_image.pt')
     # print_image(image)
     for i in range(0, TIME_STEPS, 100):
