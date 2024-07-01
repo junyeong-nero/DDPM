@@ -2,18 +2,41 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+def sinusoidal_embedding(n, d):
+    # Returns the standard positional embedding
+    embedding = torch.tensor([[i / 10_000 ** (2 * j / d) for j in range(d)] for i in range(n)])
+    sin_mask = torch.arange(0, n, 2)
+
+    embedding[sin_mask] = torch.sin(embedding[sin_mask])
+    embedding[1 - sin_mask] = torch.cos(embedding[sin_mask])
+
+    return embedding
+
+
 class UNet(nn.Module):
-    def __init__(self, in_channels, out_channels):
+    def __init__(self, in_channels, out_channels, n_steps, time_emb_dim=100):
         super(UNet, self).__init__()
+        
+        self.time_embed = nn.Embedding(n_steps, time_emb_dim)
+        self.time_embed.weight.data = sinusoidal_embedding(n_steps, time_emb_dim)
+        self.time_embed.requires_grad_(False)
 
         # Contracting path (Downsampling)
         self.enc1 = self.double_conv(in_channels, 64)
+        self.te_enc1 = self._make_time_embedding(time_emb_dim, 1)
+        
         self.enc2 = self.double_conv(64, 128)
+        self.te_enc2 = self._make_time_embedding(time_emb_dim, 64)
+        
         self.enc3 = self.double_conv(128, 256)
+        self.te_enc3 = self._make_time_embedding(time_emb_dim, 128)
+        
         self.enc4 = self.double_conv(256, 512)
+        self.te_enc4 = self._make_time_embedding(time_emb_dim, 256)
 
         # Bottleneck
         self.bottleneck = self.double_conv(512, 1024)
+        self.te_bottleneck = self._make_time_embedding(time_emb_dim, 1)
 
         # Expanding path (Upsampling)
         self.upconv4 = self.up_conv(1024, 512)
@@ -44,6 +67,8 @@ class UNet(nn.Module):
     def forward(self, x, t=0):
         
         # TODO : add timestep t into UNet.
+        t = self.time_embed(t)
+        n = len(x)
         
         # Contracting path
         enc1 = self.enc1(x)  # (B, 64, 28, 28)
@@ -82,6 +107,9 @@ class UNet(nn.Module):
         diff_height = (height - target_height) // 2
         diff_width = (width - target_width) // 2
         return tensor[:, :, diff_height:diff_height + target_height, diff_width:diff_width + target_width]
+    
+    def _make_time_embedding(self, dim_in, dim_out):
+        return nn.Sequential(nn.Linear(dim_in, dim_out), nn.SiLU(), nn.Linear(dim_out, dim_out))
 
 
 if __name__ == '__main__':

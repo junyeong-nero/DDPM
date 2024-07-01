@@ -4,6 +4,11 @@ from datasets import load_dataset
 from DDPM import DDPM, NoiseSchedule
 import Utils
 
+import torchvision
+
+from torchvision.datasets import MNIST
+from torchvision.transforms import Compose, Resize, ToTensor
+
 def extract_sample_image(index=0):
     data = load_dataset("ylecun/mnist")
     data = data.with_format("torch")
@@ -24,12 +29,15 @@ def T_noise():
         # print_image(epsilon)
         
 def T_train():
+    
     train_data = load_dataset("ylecun/mnist", split="train").with_format("torch")
     test_data = load_dataset("ylecun/mnist", split="test").with_format("torch")
-    D = DDPM(num_timesteps=1000, train_set=train_data)
+    
+    D = DDPM(n_timesteps=1000, train_set=train_data)
     D.train()
     
 if __name__ == '__main__':
     # extract_sample_image()
     # T_noise()
     T_train()
+    

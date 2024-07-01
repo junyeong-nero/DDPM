@@ -7,9 +7,9 @@ from torch.utils.data import DataLoader
 
 class NoiseSchedule:
     
-    def __init__(self, num_timesteps, beta_start=0.0001, beta_end=0.02) -> None:
-        self._size = num_timesteps
-        self._betas = torch.linspace(beta_start, beta_end, num_timesteps) #.to(device)
+    def __init__(self, n_timesteps, beta_start=0.0001, beta_end=0.02) -> None:
+        self._size = n_timesteps
+        self._betas = torch.linspace(beta_start, beta_end, n_timesteps) #.to(device)
         self._alphas = self._calculate_alphas()
         
         # print(self._betas)
@@ -31,25 +31,26 @@ class NoiseSchedule:
 
 class DDPM:
     
-    def __init__(self, num_timesteps, train_set) -> None:
+    def __init__(self, n_timesteps, train_set) -> None:
         
-        self.num_timesteps = num_timesteps
+        self.n_timesteps = n_timesteps
         
         # alpha, betas
-        self.noise_schedule = NoiseSchedule(num_timesteps=num_timesteps)
+        self.noise_schedule = NoiseSchedule(n_timesteps=n_timesteps)
         
         # forward encoder
         self.encoder = Encoder.ForwardEncoder(noise_schedule=self.noise_schedule)
         
-        # DNN for predicting total noise
-        self.g = UNet(in_channels=1, out_channels=1)
+        # UNet for predicting total noise
+        self.g = UNet(in_channels=1, out_channels=1, n_steps=n_timesteps)
         
-        self.optimizer = torch.optim.SGD(self.g.parameters(), lr=0.0001, momentum=0.9)
+        # optimizer
+        self.lossFunction = torch.nn.MSELoss()
+        self.optimizer = torch.optim.Adam(self.g.parameters(), lr=0.0001)
 
-        # Create data loaders for our datasets; shuffle for training, not for validation
+        # datasets
         self.training_loader = DataLoader(train_set, batch_size=8, shuffle=True)
         
-        self.lossFunction = torch.nn.MSELoss()
         
         
     def save(self, path='./model.pt'):
@@ -69,11 +70,12 @@ class DDPM:
             # inputs = [bs, 1, 28, 28]
             inputs = data['image'].type(torch.float32)
             inputs = inputs.unsqueeze(1)
+            print(inputs.shape)
             
             batch_size = inputs.shape[0]
             
             # sampled timestep
-            t = torch.randint(0, self.num_timesteps, (batch_size, ))
+            t = torch.randint(0, self.n_timesteps, (batch_size, ))
             
             # outputs = [bs, 1, 28, 28]
             self.optimizer.zero_grad()
