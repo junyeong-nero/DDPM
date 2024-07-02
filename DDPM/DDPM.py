@@ -66,9 +66,10 @@ class DDPM:
 
         for i, data in enumerate(self.training_loader):
             
+            print(data['image'])
             
             # inputs = [bs, 1, 28, 28]
-            inputs = data['image'].type(torch.float32)
+            inputs = torch.FloatTensor(data['image'])
             inputs = inputs.unsqueeze(1)
             print(inputs.shape)
             
