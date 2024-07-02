@@ -7,14 +7,7 @@ from myDDPM.ForwardEncoder import ForwardEncoder
 from myDDPM.NoiseSchedule import NoiseSchedule
 
 
-def extract_sample_image(index=0):
-    dataset = load_dataset("junyeong-nero/mnist_32by32").with_format("torch")
-    image = dataset['train'][index]['image']
-    torch.save(image, 'sample_image.pt')
-    Utils.print_image(image)
-    return image
-
-def T_noise():
+def TEST_encoder():
     TIME_STEPS = 1000
     noise_schedule = NoiseSchedule(n_timesteps=TIME_STEPS)
     encoder = ForwardEncoder(noise_schedule=noise_schedule)
@@ -26,7 +19,7 @@ def T_noise():
         Utils.print_image(noised_image[0][0])
         # print_image(epsilon)
         
-def T_train():
+def train():
     
     dataset = load_dataset("junyeong-nero/mnist_32by32").with_format("torch")
     train, test = dataset['train'], dataset['test']
@@ -37,5 +30,5 @@ def T_train():
     
 if __name__ == '__main__':
     # T_noise()
-    T_train()
+    train()
     
