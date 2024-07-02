@@ -1,7 +1,6 @@
 import torch
 from torch.utils.data import DataLoader
 
-from myDDPM import Utils
 from myDDPM.UNet import UNet
 from myDDPM.ForwardEncoder import ForwardEncoder
 from myDDPM.NoiseSchedule import NoiseSchedule
@@ -42,12 +41,12 @@ class DDPM:
 
         for i, data in enumerate(self.training_loader):
             
-            print(data)
+            # print(data)
             
             # inputs = [bs, 1, 28, 28]
             inputs = data['image']
             inputs = inputs.unsqueeze(1).type(torch.float32)
-            print(inputs.shape)
+            # print(inputs.shape)
             
             batch_size = inputs.shape[0]
             
@@ -71,11 +70,9 @@ class DDPM:
             # Gather data and report
             running_loss += loss.item()
             
-            print(i, loss.item())
-            
-            if i % 1000 == 999:
+            if i % 1000 == 100:
                 last_loss = running_loss / 1000 # loss per batch
-                print('  batch {} loss: {}'.format(i + 1, last_loss))
+                print('  batch {} loss: {}'.format(i, last_loss))
                 running_loss = 0
 
         return last_loss
