@@ -1,33 +1,10 @@
-from UNet import UNet 
-import Encoder
-import Utils
-
-import torch, torchvision
+import torch
 from torch.utils.data import DataLoader
 
-class NoiseSchedule:
-    
-    def __init__(self, n_timesteps, beta_start=0.0001, beta_end=0.02) -> None:
-        self._size = n_timesteps
-        self._betas = torch.linspace(beta_start, beta_end, n_timesteps) #.to(device)
-        self._alphas = self._calculate_alphas()
-        
-        # print(self._betas)
-        # print(self._alphas)
-        
-    def _calculate_alphas(self):
-        self._alphas = torch.cumprod(1 - self._betas, axis=0)
-        return self._alphas
-        
-    def get_beta(self, index):
-        if index >= self._size:
-            raise IndexError("[get] out of index :", index, " / size :", self._size)
-        return self._betas[index]
-    
-    def get_alpha(self, index):
-        if index >= self._size:
-            raise IndexError("[get] out of index :", index, " / size :", self._size)
-        return self._alphas[index]
+from myDDPM import Utils
+from myDDPM.UNet import UNet
+from myDDPM.ForwardEncoder import ForwardEncoder
+from myDDPM.NoiseSchedule import NoiseSchedule
 
 class DDPM:
     
@@ -39,7 +16,7 @@ class DDPM:
         self.noise_schedule = NoiseSchedule(n_timesteps=n_timesteps)
         
         # forward encoder
-        self.encoder = Encoder.ForwardEncoder(noise_schedule=self.noise_schedule)
+        self.encoder = ForwardEncoder(noise_schedule=self.noise_schedule)
         
         # UNet for predicting total noise
         self.g = UNet(in_channels=1, out_channels=1, n_steps=n_timesteps)
@@ -50,7 +27,6 @@ class DDPM:
 
         # datasets
         self.training_loader = DataLoader(train_set, batch_size=8, shuffle=True)
-        
         
         
     def save(self, path='./model.pt'):
@@ -66,11 +42,11 @@ class DDPM:
 
         for i, data in enumerate(self.training_loader):
             
-            print(data['image'])
+            print(data)
             
             # inputs = [bs, 1, 28, 28]
-            inputs = torch.FloatTensor(data['image'])
-            inputs = inputs.unsqueeze(1)
+            inputs = data['image']
+            inputs = inputs.unsqueeze(1).type(torch.float32)
             print(inputs.shape)
             
             batch_size = inputs.shape[0]

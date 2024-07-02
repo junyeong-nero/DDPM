@@ -33,14 +33,18 @@ class UNet(nn.Module):
         
         self.enc4 = self.double_conv(256, 512)
         self.te_enc4 = self._make_time_embedding(time_emb_dim, 256)
+        
+        self.enc5 = self.double_conv(512, 1024)
+        self.te_enc5 = self._make_time_embedding(time_emb_dim, 512)
 
         # Bottleneck
-        self.bottleneck = self.double_conv(512, 1024)
+        self.bottleneck = self.double_conv(1024, 2048)
         self.te_bottleneck = self._make_time_embedding(time_emb_dim, 1)
 
         # Expanding path (Upsampling)
         self.upconv4 = self.up_conv(1024, 512)
         self.dec4 = self.double_conv(1024, 512)
+        
         self.upconv3 = self.up_conv(512, 256)
         self.dec3 = self.double_conv(512, 256)
         self.upconv2 = self.up_conv(256, 128)
@@ -71,13 +75,14 @@ class UNet(nn.Module):
         n = len(x)
         
         # Contracting path
-        enc1 = self.enc1(x)  # (B, 64, 28, 28)
-        enc2 = self.enc2(F.max_pool2d(enc1, kernel_size=2))  # (B, 128, 14, 14)
-        enc3 = self.enc3(F.max_pool2d(enc2, kernel_size=2))  # (B, 256, 7, 7)
-        enc4 = self.enc4(F.max_pool2d(enc3, kernel_size=2))  # (B, 512, 3, 3)
+        enc1 = self.enc1(x)  # (B, 64, 32, 32)
+        enc2 = self.enc2(F.max_pool2d(enc1, kernel_size=2))  # (B, 128, 16, 16)
+        enc3 = self.enc3(F.max_pool2d(enc2, kernel_size=2))  # (B, 256, 8, 8)
+        enc4 = self.enc4(F.max_pool2d(enc3, kernel_size=2))  # (B, 512, 4, 4)
+        enc5 = self.enc5(F.max_pool2d(enc4, kernel_size=2))  # (B, 1024, 2, 2)
 
         # Bottleneck
-        bottleneck = self.bottleneck(F.max_pool2d(enc4, kernel_size=2))  # (B, 1024, 1, 1)
+        bottleneck = self.bottleneck(F.max_pool2d(enc5, kernel_size=2))  # (B, 2048, 1, 1)
 
         # Expanding path
         dec4 = self.upconv4(bottleneck)  # (B, 512, 2, 2)
