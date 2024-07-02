@@ -1,7 +1,8 @@
 # DDPM self-implementation
 
 - paper : https://arxiv.org/pdf/2006.11239
-- data : https://huggingface.co/datasets/ylecun/mnist
+- data(MNIST) : https://huggingface.co/datasets/ylecun/mnist
+- data(MNIST modified with size(32, 32)) : https://huggingface.co/datasets/junyeong-nero/mnist_32by32
 
 # Reference
 
