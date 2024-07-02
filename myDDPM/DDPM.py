@@ -7,7 +7,7 @@ from myDDPM.NoiseSchedule import NoiseSchedule
 
 class DDPM:
     
-    def __init__(self, n_timesteps, train_set) -> None:
+    def __init__(self, n_timesteps, train_set=None, test_set=None) -> None:
         
         self.n_timesteps = n_timesteps
         
@@ -25,8 +25,10 @@ class DDPM:
         self.optimizer = torch.optim.Adam(self.g.parameters(), lr=0.0001)
 
         # datasets
-        self.training_loader = DataLoader(train_set, batch_size=8, shuffle=True)
-        
+        if train_set:
+            self.training_loader = DataLoader(train_set, batch_size=8, shuffle=True)
+        if test_set:
+            self.testing_loader = DataLoader(test_set, batch_size=8, shuffle=True)
         
     def save(self, path='./model.pt'):
         torch.save(self.g.state_dict(), path)
@@ -35,7 +37,7 @@ class DDPM:
         self.g.load_state_dict(torch.load(path))
         self.g.eval()
         
-    def train_one_epoch(self):
+    def train_one_epoch(self, n_iter_limit=None):
         running_loss = 0
         last_loss = 0
 
@@ -43,7 +45,7 @@ class DDPM:
             
             # print(data)
             
-            # inputs = [bs, 1, 28, 28]
+            # inputs = [B, 1, 28, 28]
             inputs = data['image']
             inputs = inputs.unsqueeze(1).type(torch.float32)
             # print(inputs.shape)
@@ -53,7 +55,7 @@ class DDPM:
             # sampled timestep
             t = torch.randint(0, self.n_timesteps, (batch_size, ))
             
-            # outputs = [bs, 1, 28, 28]
+            # outputs = [B, 1, 28, 28]
             self.optimizer.zero_grad()
             outputs = self.g(inputs, t) 
             
@@ -70,27 +72,27 @@ class DDPM:
             # Gather data and report
             running_loss += loss.item()
             
-            if i % 1000 == 100:
+            if i == n_iter_limit:
+                break
+            
+            if i % 100 == 0:
                 last_loss = running_loss / 1000 # loss per batch
                 print('  batch {} loss: {}'.format(i, last_loss))
                 running_loss = 0
 
         return last_loss
 
-    def train(self):
-        epoch_number = 0
-        EPOCHS = 5
-        
-        best_vloss = 1_000_000.
+    def train(self, n_epoch=5, n_iter_limit=None):
+        best_vloss = 1_000_000
 
-        for epoch in range(EPOCHS):
-            print('EPOCH {}:'.format(epoch_number + 1))
+        for epoch in range(n_epoch):
+            print('EPOCH {}:'.format(epoch + 1))
 
             # Make sure gradient tracking is on, and do a pass over the data
             self.g.train(True)
-            avg_loss = self.train_one_epoch()
+            avg_loss = self.train_one_epoch(n_iter_limit=n_iter_limit)
             
             if avg_loss < best_vloss:
                 best_vloss = avg_loss
-                model_path = 'model_'.format(epoch_number)
+                model_path = 'model_{}.pt'.format(epoch)
                 torch.save(self.g.state_dict(), model_path)
