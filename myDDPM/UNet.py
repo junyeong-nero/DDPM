@@ -89,19 +89,19 @@ class UNet(nn.Module):
 
         # Expanding path
         dec4 = self.upconv4(bottleneck)  # (B, 512, 2, 2)
-        dec4 = torch.cat((dec4, enc4), dim=1)
+        dec4 = torch.cat((dec4, enc4), dim=1) + self.te_dec4(t).reshape(n, -1, 1, 1)
         dec4 = self.dec4(dec4)  # (B, 512, 2, 2)
         
         dec3 = self.upconv3(dec4)  # (B, 512, 2, 2)
-        dec3 = torch.cat((dec3, enc3), dim=1)
+        dec3 = torch.cat((dec3, enc3), dim=1) + self.te_dec3(t).reshape(n, -1, 1, 1)
         dec3 = self.dec3(dec3)  # (B, 512, 2, 2)
         
         dec2 = self.upconv2(enc3)  # (B, 512, 2, 2)
-        dec2= torch.cat((dec2, enc2), dim=1)
+        dec2= torch.cat((dec2, enc2), dim=1) + self.te_dec2(t).reshape(n, -1, 1, 1)
         dec2 = self.dec2(dec2)  # (B, 512, 2, 2)
         
         dec1 = self.upconv1(enc2)  # (B, 512, 2, 2)
-        dec1 = torch.cat((dec1, enc1), dim=1)
+        dec1 = torch.cat((dec1, enc1), dim=1) + self.te_dec1(t).reshape(n, -1, 1, 1)
         dec1 = self.dec1(dec1)  # (B, 512, 2, 2)
 
         output = F.interpolate(dec1, size=(32, 32), mode='bilinear', align_corners=False)
