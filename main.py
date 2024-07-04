@@ -36,21 +36,21 @@ def TEST_train():
         
 def TEST_decoder():
     D = DDPM(n_timesteps=1000)
-    D.load(path='./model_test.pt')
+    # D.load(path='./model_test.pt')
 
     decoder = ReverseDecoder(noise_schedule=noise_schedule, g=D.g)
     
     # batch size = 1, channel = 1
-    test_noise = torch.randn((1, 1, 32, 32))
-    generated_image = decoder.denoise(test_noise, torch.tensor(TIME_STEPS))
+    test_noise = torch.randn((8, 1, 32, 32))
+    generated_image = decoder.denoise(test_noise, TIME_STEPS)
     print(generated_image.shape)
     
-    Utils.print_image(test_noise[0][0])
-    Utils.print_image(generated_image[0][0])
+    Utils.print_image(test_noise[-1][0])
+    Utils.print_image(generated_image[-1][0])
     
     
 if __name__ == '__main__':
-    TEST_encoder()
+    # TEST_encoder()
     # TEST_train()
-    # TEST_decoder()
+    TEST_decoder()
     

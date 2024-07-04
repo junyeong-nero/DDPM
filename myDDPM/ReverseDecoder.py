@@ -7,16 +7,24 @@ class ReverseDecoder:
         self.g = g
         
     def denoise(self, noise_data, time_step):
+        # noise_data : [B, 1, 32, 32]
+        # time_step : INT
+        
+        batch_size = noise_data.shape[0]
+        # batch_size : B
+            
         with torch.no_grad():
-            # t : [T - 1, T - 2, .. 2, 1, 0]
-            for t in range(time_step - 1, -1, -1):
+
+            # step : [T - 1, T - 2, .. 2, 1, 0]
+            for step in range(time_step - 1, -1, -1):
                 
-                print(t)
-                t = torch.tensor(t)
+                t = torch.full((batch_size, ), step)
+                t = t.reshape(-1, 1, 1, 1)
+                # t : [B, 1, 1, 1]
         
                 mu = 1 / torch.sqrt(1 - self.noise_schedule._betas[t]) * (noise_data - (self.noise_schedule._betas[t] / (1 - self.noise_schedule._alphas[t])) * self.g(noise_data, t))
                 
-                if t == 0:
+                if step == 0:
                     # if t == 0, no add noise
                     break
                 

@@ -34,7 +34,7 @@ class DDPM:
         torch.save(self.g.state_dict(), path)
     
     def load(self, path='./model.pt'):
-        self.g.load_state_dict(torch.load(path))
+        self.g.load_state_dict(torch.load(path, map_location=torch.device('cpu')))
         self.g.eval()
         
     def train_one_epoch(self, n_iter_limit=None):
