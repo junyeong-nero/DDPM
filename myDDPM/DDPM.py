@@ -56,10 +56,8 @@ class DDPM:
             t = torch.randint(0, self.n_timesteps, (batch_size, ))
             
             # outputs = [B, 1, 28, 28]
-            self.optimizer.zero_grad()
-            outputs = self.g(inputs, t) 
-            
             noised_image, epsilon = self.encoder.noise(inputs, t)
+            outputs = self.g(noised_image, t) 
             # Utils.print_image(noised_image[0][0])
 
             # Compute the loss and its gradients
