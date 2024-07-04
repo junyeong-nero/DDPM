@@ -1,4 +1,5 @@
 *.log
 *.pt
+*.pyc
 model_test.pt
 myDDPM/__pycache__
