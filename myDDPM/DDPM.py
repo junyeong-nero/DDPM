@@ -64,9 +64,10 @@ class DDPM:
 
             # Compute the loss and its gradients
             loss = self.lossFunction(outputs, epsilon)
-            loss.backward()
-
+            
             # Adjust learning weights
+            self.optimizer.zero_grad()
+            loss.backward()
             self.optimizer.step()
 
             # Gather data and report

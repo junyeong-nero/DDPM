@@ -69,6 +69,9 @@ class UNet(nn.Module):
     def up_conv(self, in_channels, out_channels):
         """Upsampling followed by convolution"""
         return nn.ConvTranspose2d(in_channels, out_channels, kernel_size=2, stride=2)
+    
+    def _make_time_embedding(self, dim_in, dim_out):
+        return nn.Sequential(nn.Linear(dim_in, dim_out), nn.SiLU(), nn.Linear(dim_out, dim_out))
 
     def forward(self, x, t=0):
         
@@ -104,16 +107,6 @@ class UNet(nn.Module):
 
         output = self.out_conv(dec1) # (B, 1, 16, 16)
         return output
-
-    def center_crop(self, tensor, target_height, target_width):
-        """Center crop tensor to target size"""
-        _, _, height, width = tensor.size()
-        diff_height = (height - target_height) // 2
-        diff_width = (width - target_width) // 2
-        return tensor[:, :, diff_height:diff_height + target_height, diff_width:diff_width + target_width]
-    
-    def _make_time_embedding(self, dim_in, dim_out):
-        return nn.Sequential(nn.Linear(dim_in, dim_out), nn.SiLU(), nn.Linear(dim_out, dim_out))
 
 
 if __name__ == '__main__':
