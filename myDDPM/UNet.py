@@ -12,7 +12,6 @@ def sinusoidal_embedding(n, d):
 
     return embedding
 
-
 class UNet(nn.Module):
     def __init__(self, in_channels, out_channels, n_steps, time_emb_dim=100):
         super(UNet, self).__init__()
@@ -23,41 +22,40 @@ class UNet(nn.Module):
 
         # Contracting path (Downsampling)
         self.te_enc1 = self._make_time_embedding(time_emb_dim, 1)
-        self.enc1 = self.double_conv(in_channels, 64)
+        self.enc1 = self.double_conv(in_channels, 10)
         
-        self.te_enc2 = self._make_time_embedding(time_emb_dim, 64)
-        self.enc2 = self.double_conv(64, 128)
+        self.te_enc2 = self._make_time_embedding(time_emb_dim, 10)
+        self.enc2 = self.double_conv(10, 20)
         
-        self.te_enc3 = self._make_time_embedding(time_emb_dim, 128)
-        self.enc3 = self.double_conv(128, 256)
+        self.te_enc3 = self._make_time_embedding(time_emb_dim, 20)
+        self.enc3 = self.double_conv(20, 40)
         
-        self.te_enc4 = self._make_time_embedding(time_emb_dim, 256)
-        self.enc4 = self.double_conv(256, 512)
+        self.te_enc4 = self._make_time_embedding(time_emb_dim, 40)
+        self.enc4 = self.double_conv(40, 80)
         
         # Bottleneck
-        
-        self.te_bottleneck = self._make_time_embedding(time_emb_dim, 512)
-        self.bottleneck = self.double_conv(512, 1024)
+        self.te_bottleneck = self._make_time_embedding(time_emb_dim, 80)
+        self.bottleneck = self.double_conv(80, 160)
 
         # Expanding path (Upsampling)
-        self.te_dec4 = self._make_time_embedding(time_emb_dim, 1024)
-        self.upconv4 = self.up_conv(1024, 512)
-        self.dec4 = self.double_conv(1024, 512)
+        self.te_dec4 = self._make_time_embedding(time_emb_dim, 160)
+        self.upconv4 = self.up_conv(160, 80)
+        self.dec4 = self.double_conv(160, 80)
         
-        self.te_dec3 = self._make_time_embedding(time_emb_dim, 512)
-        self.upconv3 = self.up_conv(512, 256)
-        self.dec3 = self.double_conv(512, 256)
+        self.te_dec3 = self._make_time_embedding(time_emb_dim, 80)
+        self.upconv3 = self.up_conv(80, 40)
+        self.dec3 = self.double_conv(80, 40)
         
-        self.te_dec2 = self._make_time_embedding(time_emb_dim, 256)
-        self.upconv2 = self.up_conv(256, 128)
-        self.dec2 = self.double_conv(256, 128)
+        self.te_dec2 = self._make_time_embedding(time_emb_dim, 40)
+        self.upconv2 = self.up_conv(40, 20)
+        self.dec2 = self.double_conv(40, 20)
         
-        self.te_dec1 = self._make_time_embedding(time_emb_dim, 128)
-        self.upconv1 = self.up_conv(128, 64)
-        self.dec1 = self.double_conv(128, 64)
+        self.te_dec1 = self._make_time_embedding(time_emb_dim, 20)
+        self.upconv1 = self.up_conv(20, 10)
+        self.dec1 = self.double_conv(20, 10)
 
         # Output layer
-        self.out_conv = nn.Conv2d(64, out_channels, kernel_size=1)
+        self.out_conv = nn.Conv2d(10, out_channels, kernel_size=1)
 
     def double_conv(self, in_channels, out_channels):
         """Two consecutive convolutional layers followed by ReLU"""
@@ -88,24 +86,23 @@ class UNet(nn.Module):
         bottleneck = self.bottleneck(F.max_pool2d(enc4, kernel_size=2) + self.te_bottleneck(t).reshape(n, -1, 1, 1))  # (B, 1024, 2, 2)
 
         # Expanding path
-        dec4 = self.upconv4(bottleneck)  # (B, 512, 2, 2)
-        dec4 = torch.cat((dec4, enc4), dim=1) + self.te_dec4(t).reshape(n, -1, 1, 1)
-        dec4 = self.dec4(dec4)  # (B, 512, 2, 2)
+        dec4 = self.upconv4(bottleneck) # (B, 512, 4, 4)
+        dec4 = torch.cat((dec4, enc4), dim=1) + self.te_dec4(t).reshape(n, -1, 1, 1) # (B, 1024, 4, 4)
+        dec4 = self.dec4(dec4)  # (B, 512, 4, 4)
         
-        dec3 = self.upconv3(dec4)  # (B, 512, 2, 2)
-        dec3 = torch.cat((dec3, enc3), dim=1) + self.te_dec3(t).reshape(n, -1, 1, 1)
-        dec3 = self.dec3(dec3)  # (B, 512, 2, 2)
+        dec3 = self.upconv3(dec4)  # (B, 256, 8, 8)
+        dec3 = torch.cat((dec3, enc3), dim=1) + self.te_dec3(t).reshape(n, -1, 1, 1) # (B, 512, 8, 8)
+        dec3 = self.dec3(dec3)  # (B, 256, 8, 8)
         
-        dec2 = self.upconv2(enc3)  # (B, 512, 2, 2)
-        dec2= torch.cat((dec2, enc2), dim=1) + self.te_dec2(t).reshape(n, -1, 1, 1)
-        dec2 = self.dec2(dec2)  # (B, 512, 2, 2)
+        dec2 = self.upconv2(enc3)  # (B, 128, 16, 16)
+        dec2= torch.cat((dec2, enc2), dim=1) + self.te_dec2(t).reshape(n, -1, 1, 1) # (B, 256, 16, 16)
+        dec2 = self.dec2(dec2)  # (B, 128, 16, 16)
         
-        dec1 = self.upconv1(enc2)  # (B, 512, 2, 2)
+        dec1 = self.upconv1(enc2)  # (B, 64, 32, 32)
         dec1 = torch.cat((dec1, enc1), dim=1) + self.te_dec1(t).reshape(n, -1, 1, 1)
-        dec1 = self.dec1(dec1)  # (B, 512, 2, 2)
+        dec1 = self.dec1(dec1)  # (B, 64, 32, 32)
 
-        output = F.interpolate(dec1, size=(32, 32), mode='bilinear', align_corners=False)
-        output = self.out_conv(output)
+        output = self.out_conv(dec1) # (B, 1, 16, 16)
         return output
 
     def center_crop(self, tensor, target_height, target_width):
