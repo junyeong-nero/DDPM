@@ -14,17 +14,17 @@ def sinusoidal_embedding(n, d):
     
 
 class UNetConv2D(nn.Module):
-    def __init__(self, in_size, out_size, is_batchnorm, n=2, ks=3, stride=1, padding=1):
+    def __init__(self, in_size, out_size, is_batchnorm, n=2, kernel_size=3, stride=1, padding=1):
         super(UNetConv2D, self).__init__()
         self.n = n
-        self.ks = ks
+        self.ks = kernel_size
         self.stride = stride
         self.padding = padding
         s = stride
         p = padding
         if is_batchnorm:
             for i in range(1, n + 1):
-                conv = nn.Sequential(nn.Conv2d(in_size, out_size, ks, s, p),
+                conv = nn.Sequential(nn.Conv2d(in_size, out_size, kernel_size, s, p),
                                      nn.BatchNorm2d(out_size),
                                      nn.ReLU(inplace=True), )
                 setattr(self, 'conv%d' % i, conv)
@@ -32,7 +32,7 @@ class UNetConv2D(nn.Module):
 
         else:
             for i in range(1, n + 1):
-                conv = nn.Sequential(nn.Conv2d(in_size, out_size, ks, s, p),
+                conv = nn.Sequential(nn.Conv2d(in_size, out_size, kernel_size, s, p),
                                      nn.ReLU(inplace=True), )
                 setattr(self, 'conv%d' % i, conv)
                 in_size = out_size
@@ -138,7 +138,6 @@ class UNet(nn.Module):
         self.outconv1 = nn.Conv2d(filters[0], self.out_channels, 3, padding=1)
 
     def forward(self, inputs, t):
-        B = inputs.shape[0]
         t = self.time_embed(t)
         
         conv1 = self.conv1(inputs)  # 16*512*1024
