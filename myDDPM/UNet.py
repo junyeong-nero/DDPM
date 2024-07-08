@@ -56,12 +56,11 @@ class UNetUp(nn.Module):
         else:
             self.up = nn.UpsamplingBilinear2d(scale_factor=2)
 
-    def forward(self, inputs0, *input):
-        # print(self.n_concat)
-        # print(input)
+    def forward(self, inputs0, *input):    
         outputs0 = self.up(inputs0)
         for i in range(len(input)):
             outputs0 = torch.cat([outputs0, input[i]], 1)
+            
         return self.conv(outputs0)
     
     
@@ -139,29 +138,31 @@ class UNet(nn.Module):
 
     def forward(self, inputs, t):
         t = self.time_embed(t)
+        # inputs : [B, 1, 32, 32]
         
-        conv1 = self.conv1(inputs)  # 16*512*1024
-        maxpool1 = self.maxpool1(conv1 + self.emb1(t))  # 16*256*512
+        conv1 = self.conv1(inputs)  # [B, 64, 32, 32]
+        maxpool1 = self.maxpool1(conv1 + self.emb1(t))  # [B, 64, 16, 16]
 
-        conv2 = self.conv2(maxpool1)  # 32*256*512
-        maxpool2 = self.maxpool2(conv2 + self.emb2(t))  # 32*128*256
+        conv2 = self.conv2(maxpool1)  # [B, 128, 16, 16]
+        maxpool2 = self.maxpool2(conv2 + self.emb2(t))  # [B, 128, 8, 8]
 
-        conv3 = self.conv3(maxpool2)  # 64*128*256
-        maxpool3 = self.maxpool3(conv3 + self.emb3(t))  # 64*64*128
+        conv3 = self.conv3(maxpool2)  # [B, 256, 8, 8]
+        maxpool3 = self.maxpool3(conv3 + self.emb3(t))  # [B, 256, 4, 4]
 
-        conv4 = self.conv4(maxpool3)  # 128*64*128
-        maxpool4 = self.maxpool4(conv4 + self.emb4(t))  # 128*32*64
+        conv4 = self.conv4(maxpool3)  # [B, 512, 4, 4]
+        maxpool4 = self.maxpool4(conv4 + self.emb4(t))  # [B, 512, 2, 2]
 
-        center = self.center(maxpool4)  # 256*32*64
+        center = self.center(maxpool4)  # [B, 1024, 2, 2]
 
-        up4 = self.up_concat4(center, conv4) + self.up_emb4(t)  # 128*64*128
-        up3 = self.up_concat3(up4, conv3) + self.up_emb3(t) # 64*128*256
-        up2 = self.up_concat2(up3, conv2) + self.up_emb2(t)  # 32*256*512
-        up1 = self.up_concat1(up2, conv1) + self.up_emb1(t)  # 16*512*1024
+        
+        up4 = self.up_concat4(center, conv4) + self.up_emb4(t)  # [B, 512, 4, 4]
+        up3 = self.up_concat3(up4, conv3) + self.up_emb3(t) # [B, 256, 8, 8]
+        up2 = self.up_concat2(up3, conv2) + self.up_emb2(t) # [B, 128, 16, 16]
+        up1 = self.up_concat1(up2, conv1) + self.up_emb1(t) # [B, 64, 32, 32]
 
-        d1 = self.outconv1(up1)  # 256
+        out = self.outconv1(up1)  # [B, 1, 32, 32]
 
-        return F.sigmoid(d1)
+        return out
 
 
 if __name__ == '__main__':
