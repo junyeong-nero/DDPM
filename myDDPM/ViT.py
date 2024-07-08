@@ -5,14 +5,23 @@ import torch.nn.functional as F
 class PatchEmbedding(nn.Module):
     def __init__(self, img_size=224, patch_size=16, in_channels=3, embed_dim=768):
         super().__init__()
+        
+        # 가장 중요한 부분. patch_size의 이미지로 원본 이미지를 쪼갠 후
+        # Convolution을 진행
+        
         self.num_patches = (img_size // patch_size) ** 2
         self.patch_size = patch_size
         self.proj = nn.Conv2d(in_channels, embed_dim, kernel_size=patch_size, stride=patch_size)
 
     def forward(self, x):
         x = self.proj(x)  # [B, embed_dim, H/P, W/P]
+        # Convolution으로 embeded dim을 증가시킴
+        
         x = x.flatten(2)  # [B, embed_dim, N]
+        # linear 하게 flatten하고 
+        
         x = x.transpose(1, 2)  # [B, N, embed_dim]
+        # transpose 해서 embedding 처럼 사용
         return x
 
 class MultiHeadAttention(nn.Module):
@@ -99,22 +108,37 @@ class VisionTransformer(nn.Module):
 
     def forward(self, x):
         B = x.shape[0]
+        
         x = self.patch_embed(x)
+        # [B, N, embed_dim]
+        
         cls_tokens = self.cls_token.expand(B, -1, -1)
+        # [B, N, embed_dim]
+        
         x = torch.cat((cls_tokens, x), dim=1)
+        # [B, N + 1, embed_dim]
+        
         x = x + self.pos_embed
+        # [B, N + 1, embed_dim]
+        
         x = self.dropout(x)
-
+        # [B, N + 1, embed_dim]
+        
         x = self.transformer(x)
+        # [B, N + 1, embed_dim]
+        
+        print(x.shape)
+        
         x = self.norm(x)
         cls_logits = self.head(x[:, 0])
+        # [B, N + 1, num_classes]
 
         return cls_logits
 
 
 if __name__ == '__main__':
     # Example usage
-    img = torch.randn(1, 3, 224, 224)  # Example input image
+    img = torch.randn(8, 3, 224, 224)  # Example input image
     model = VisionTransformer()
     logits = model(img)
     print(logits.shape)
