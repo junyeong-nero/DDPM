@@ -24,17 +24,11 @@ def TEST_encoder():
         break
 
     Utils.print_image(sample_image[-1][0])
-    for step in range(0, TIME_STEPS, 10):
+    sample_image = sample_image
+    for step in range(0, TIME_STEPS, 100):
         t = torch.full((8, ), step)
         noised_image, epsilon = D.encoder.noise(sample_image, t)
-        Utils.print_image(noised_image[-1][0])
-
-
-def TEST_train():
-    D = DDPM(n_timesteps=TIME_STEPS, train_set=train)
-    D.train(n_epoch=50) # limited training for testing
-    D.save(path="./model_test.pt")
-
+        Utils.print_image(noised_image.cpu()[-1][0])
 
 def TEST_decoder(path, n_test=1):
     D = DDPM(n_timesteps=TIME_STEPS)
@@ -48,5 +42,18 @@ def TEST_decoder(path, n_test=1):
 
     print(generated_image.shape)
     for i in range(n_test):
-        Utils.print_image(test_noise[i][0])
-        Utils.print_image(generated_image[i][0])
+        Utils.print_image(test_noise.cpu()[i][0])
+        Utils.print_image(generated_image.cpu()[i][0])
+
+
+if __name__ == '__main__':
+    model = DDPM(
+        n_timesteps=TIME_STEPS,
+        train_set=train,
+        test_set=test,
+        train_batch_size=BATCH_SIZE,
+        test_batch_size=2
+    )
+    
+    history = model.train(n_epoch=5)
+    Utils.print_loss(history)
