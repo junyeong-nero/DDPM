@@ -54,19 +54,12 @@ class ReverseDecoder:
 
                 t = torch.full((batch_size, ), tau[i])
                 t = t.reshape(-1, 1, 1, 1)
-                alpha_t = self.noise_schedule._alphas[t]
-                # t : [B, 1, 1, 1]
-                # alpha_t : [B, 1, 1, 1]
 
-
-                # alpha_0 = 1
                 t_1 = torch.full((batch_size, ), tau[i - 1])
                 t_1 = t_1.reshape(-1, 1, 1, 1)
-                alpha_t_1 = torch.full((batch_size, ), 1)
-                if i > 0:
-                    alpha_t_1 = self.noise_schedule._alphas[t_1]
-                # alpha_t_1 : [B, 1, 1, 1]
-                # t : [B, 1, 1, 1]
+                
+                alpha_t = self.noise_schedule._alphas[t]
+                alpha_t_1 = self.noise_schedule._alphas[t_1] if i > 0 else torch.full((batch_size, ), 1)
 
                 first = torch.sqrt(alpha_t / alpha_t_1) * (noise_data - torch.sqrt(1 - alpha_t) * self.g(noise_data, t))
                 second = noise_data - torch.sqrt(1 - alpha_t_1) * self.g(noise_data, t)
