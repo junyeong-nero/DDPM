@@ -30,30 +30,31 @@ def TEST_encoder():
         noised_image, epsilon = D.encoder.noise(sample_image, t)
         Utils.print_image(noised_image.cpu()[-1][0])
 
-def TEST_decoder(path, n_test=1):
+def TEST_decoder(n_test=1):
     D = DDPM(n_timesteps=TIME_STEPS)
-    D.load(path=path)
+    # D.load(path=path)
 
     decoder = ReverseDecoder(noise_schedule=noise_schedule, g=D.g)
 
     # batch size = 1, channel = 1
     test_noise = torch.randn((n_test, 1, 32, 32))
-    generated_image = decoder.denoise(test_noise, torch.tensor(TIME_STEPS))
+    generated_image = decoder.implicit_denoise(test_noise, torch.tensor(TIME_STEPS))
 
     print(generated_image.shape)
     for i in range(n_test):
-        Utils.print_image(test_noise.cpu()[i][0])
-        Utils.print_image(generated_image.cpu()[i][0])
+        Utils.print_image(test_noise[i][0])
+        Utils.print_image(generated_image[i][0])
 
 
 if __name__ == '__main__':
-    model = DDPM(
-        n_timesteps=TIME_STEPS,
-        train_set=train,
-        test_set=test,
-        train_batch_size=BATCH_SIZE,
-        test_batch_size=2
-    )
+    TEST_decoder()
+    # model = DDPM(
+    #     n_timesteps=TIME_STEPS,
+    #     train_set=train,
+    #     test_set=test,
+    #     train_batch_size=BATCH_SIZE,
+    #     test_batch_size=2
+    # )
     
-    history = model.train(n_epoch=5)
-    Utils.print_loss(history)
+    # history = model.train(n_epoch=5)
+    # Utils.print_loss(history)

@@ -14,7 +14,7 @@ def sinusoidal_embedding(n, d):
     
 
 class UNetConv2D(nn.Module):
-    def __init__(self, in_size, out_size, is_batchnorm, n=2, kernel_size=3, stride=1, padding=1):
+    def __init__(self, in_size, out_size, is_batchnorm, n=3, kernel_size=3, stride=1, padding=1):
         super(UNetConv2D, self).__init__()
         self.n = n
         self.ks = kernel_size
@@ -85,11 +85,11 @@ class UNetTimeEmbedding(nn.Module):
 
 class UNet(nn.Module):
 
-    def __init__(self, in_channels=1, out_channels=1, n_steps=1000, time_emb_dim=100, feature_scale=4, is_deconv=True, is_batchnorm=True):
+    def __init__(self, in_c=1, out_c=1, n_steps=1000, time_emb_dim=100, feature_scale=4, is_deconv=True, is_batchnorm=True):
         super(UNet, self).__init__()
         self.is_deconv = is_deconv
-        self.in_channels = in_channels
-        self.out_channels = out_channels
+        self.in_channels = in_c
+        self.out_channels = out_c
         self.is_batchnorm = is_batchnorm
         self.feature_scale = feature_scale
         
@@ -166,7 +166,7 @@ class UNet(nn.Module):
 
 
 if __name__ == '__main__':
-    unet = UNet(in_channels=3, out_channels=3, n_steps=1000)
+    unet = UNet(in_c=3, out_c=3, n_steps=1000)
     
     B = 64
     t = torch.randint(0, 1000, (B, )) # .type(torch.float32)
