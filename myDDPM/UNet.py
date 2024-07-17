@@ -2,6 +2,10 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
 def sinusoidal_embedding(n, d):
     # Returns the standard positional embedding
     embedding = torch.tensor([[i / 10_000 ** (2 * j / d) for j in range(d)] for i in range(n)])
@@ -11,165 +15,164 @@ def sinusoidal_embedding(n, d):
     embedding[1 - sin_mask] = torch.cos(embedding[sin_mask])
 
     return embedding
+
+class MyConv(nn.Module):
+    def __init__(self, shape, in_c, out_c, kernel_size=3, stride=1, padding=1, activation=None, normalize=True):
+        super(MyConv, self).__init__()
+        self.ln = nn.LayerNorm(shape)
+        self.conv1 = nn.Conv2d(in_c, out_c, kernel_size, stride, padding)
+        self.activation = nn.SiLU() if activation is None else activation
+        self.normalize = normalize
+
+    def forward(self, x):
+        out = self.ln(x) if self.normalize else x
+        out = self.conv1(out)
+        out = self.activation(out)
+        return out
     
 
-class UNetConv2D(nn.Module):
-    def __init__(self, in_size, out_size, is_batchnorm, n=3, kernel_size=3, stride=1, padding=1):
-        super(UNetConv2D, self).__init__()
-        self.n = n
-        self.ks = kernel_size
-        self.stride = stride
-        self.padding = padding
-        s = stride
-        p = padding
-        if is_batchnorm:
-            for i in range(1, n + 1):
-                conv = nn.Sequential(nn.Conv2d(in_size, out_size, kernel_size, s, p),
-                                     nn.BatchNorm2d(out_size),
-                                     nn.SiLU(inplace=True), )
-                setattr(self, 'conv%d' % i, conv)
-                in_size = out_size
-
-        else:
-            for i in range(1, n + 1):
-                conv = nn.Sequential(nn.Conv2d(in_size, out_size, kernel_size, s, p),
-                                     nn.SiLU(inplace=True), )
-                setattr(self, 'conv%d' % i, conv)
-                in_size = out_size
-
-    def forward(self, inputs):
-        x = inputs
-        for i in range(1, self.n + 1):
-            conv = getattr(self, 'conv%d' % i)
-            x = conv(x)
-
-        return x
+class MyTimeEmbedding(nn.Module):
     
-
-class UNetUp(nn.Module):
-    def __init__(self, in_size, out_size, is_deconv, n_concat=2):
-        super(UNetUp, self).__init__()
-        # self.conv = unetConv2(in_size + (n_concat - 2) * out_size, out_size, False)
-        self.conv = UNetConv2D(out_size*2, out_size, False)
-        if is_deconv:
-            self.up = nn.ConvTranspose2d(in_size, out_size, kernel_size=4, stride=2, padding=1)
-        else:
-            self.up = nn.UpsamplingBilinear2d(scale_factor=2)
-
-    def forward(self, inputs0, *input):    
-        outputs0 = self.up(inputs0)
-        for i in range(len(input)):
-            outputs0 = torch.cat([outputs0, input[i]], 1)
-            
-        return self.conv(outputs0)
-    
-    
-class UNetTimeEmbedding(nn.Module):
-    
-    def __init__(self, dim_in, dim_out) -> None:
-        super(UNetTimeEmbedding, self).__init__()    
-        self.ln = nn.Linear(dim_in, dim_out)
+    def __init__(self, dim_in, dim_out):
+        super(MyTimeEmbedding, self).__init__()
+        self.linear1 = nn.Linear(dim_in, dim_out)
         self.activation = nn.SiLU()
-        self.ln2 = nn.Linear(dim_out, dim_out)
-        
-    
-    def forward(self, inputs):
-        B = inputs.shape[0]
-        
-        x = self.ln(inputs)
-        x = self.activation(x)
-        x = self.ln2(x)
-        
-        return x.reshape(B, -1, 1, 1)
+        self.linear2 = nn.Linear(dim_out, dim_out)
 
+    def forward(self, x, batch_size):
+        out = self.linear1(x)
+        out = self.activation(out)
+        out = self.linear2(out)
+        return out.reshape(batch_size, -1, 1, 1)
+
+
+# [B, in_c, 32, 32] -> [B, out_c, 32, 32]
+def MyTinyBlock(size, in_c, out_c):
+    return nn.Sequential(MyConv((in_c, size, size), in_c, out_c),
+                         MyConv((out_c, size, size), out_c, out_c),
+                         MyConv((out_c, size, size), out_c, out_c))
+
+# [B, in_c, 32, 32] -> [B, in_c // 4, 32, 32]
+def MyTinyUp(size, in_c):
+    return nn.Sequential(MyConv((in_c, size, size), in_c, in_c//2),
+                         MyConv((in_c//2, size, size), in_c//2, in_c//4),
+                         MyConv((in_c//4, size, size), in_c//4, in_c//4))
 
 class UNet(nn.Module):
-
-    def __init__(self, in_channels=1, out_channels=1, n_steps=1000, time_emb_dim=256, channel_scale=64, feature_scale=5, is_deconv=True, is_batchnorm=True):
+  # Here is a network with 3 down and 3 up with the tiny block
+    def __init__(self, in_channels=1, out_channels=1, size=32, 
+                 n_steps=1000,
+                 time_emb_dim=256,
+                 n_classes=10,
+                 class_emb_dim=64,
+                 channel_scale=64):
         super(UNet, self).__init__()
-        self.is_deconv = is_deconv
-        self.in_channels = in_channels
-        self.out_channels = out_channels
-        self.is_batchnorm = is_batchnorm
-        self.feature_scale = feature_scale
-        
-        # time embedding is not trained
+
+        ### Sinusoidal embedding
+
+        # [1] -> [time_emb_dim]
         self.time_embed = nn.Embedding(n_steps, time_emb_dim)
         self.time_embed.weight.data = sinusoidal_embedding(n_steps, time_emb_dim)
         self.time_embed.requires_grad_(False)
         
-        # filters = [64, 128, 256, 512, 1024]
-        filters = [channel_scale * i for i in range(1, 1 + feature_scale)]
-        # filters = [int(x / self.feature_scale) for x in filters]
+        # [1] -> [class_emb_dim]
+        self.class_embed = nn.Embedding(n_classes, class_emb_dim)
+        self.class_embed.weight.data = sinusoidal_embedding(n_classes, class_emb_dim)
+        self.class_embed.requires_grad_(False)
 
-        # downsampling
-        self.conv1 = UNetConv2D(self.in_channels, filters[0], self.is_batchnorm)
-        self.emb1 = UNetTimeEmbedding(time_emb_dim, filters[0])
-        self.maxpool1 = nn.MaxPool2d(kernel_size=2)
+        ### Downsampling
+        self.te_enc1 = MyTimeEmbedding(time_emb_dim, 1)
+        self.te_enc2 = MyTimeEmbedding(time_emb_dim, channel_scale)
+        self.te_enc3 = MyTimeEmbedding(time_emb_dim, channel_scale * 2)
 
-        self.conv2 = UNetConv2D(filters[0], filters[1], self.is_batchnorm)
-        self.emb2 = UNetTimeEmbedding(time_emb_dim, filters[1])
-        self.maxpool2 = nn.MaxPool2d(kernel_size=2)
+        self.enc1 = MyTinyBlock(size, in_channels, channel_scale)
+        self.enc2 = MyTinyBlock(size//2, channel_scale, channel_scale * 2)
+        self.end3 = MyTinyBlock(size//4, channel_scale * 2, channel_scale * 4)
 
-        self.conv3 = UNetConv2D(filters[1], filters[2], self.is_batchnorm)
-        self.emb3 = UNetTimeEmbedding(time_emb_dim, filters[2])
-        self.maxpool3 = nn.MaxPool2d(kernel_size=2)
+        self.down1 = nn.Conv2d(channel_scale, channel_scale, kernel_size=4, stride=2, padding=1)
+        self.down2 = nn.Conv2d(channel_scale * 2, channel_scale * 2, kernel_size=4, stride=2, padding=1)
+        self.down3 = nn.Conv2d(channel_scale * 4, channel_scale * 4, kernel_size=4, stride=2, padding=1)
 
-        self.conv4 = UNetConv2D(filters[2], filters[3], self.is_batchnorm)
-        self.emb4 = UNetTimeEmbedding(time_emb_dim, filters[3])
-        self.maxpool4 = nn.MaxPool2d(kernel_size=2)
+        ### Bottleneck
+        self.te_bottleneck = MyTimeEmbedding(time_emb_dim, channel_scale * 4)
+        self.bottleneck = nn.Sequential(
+            MyConv((channel_scale * 4, size//8, size//8), channel_scale * 4, channel_scale * 2),
+            MyConv((channel_scale * 2, size//8, size//8), channel_scale * 2, channel_scale * 2),
+            MyConv((channel_scale * 2, size//8, size//8), channel_scale * 2, channel_scale * 4)
+        )
 
-        self.center = UNetConv2D(filters[3], filters[4], self.is_batchnorm)
+        ### Upsampling
 
-        # upsampling
-        self.up_concat4 = UNetUp(filters[4], filters[3], self.is_deconv)
-        self.up_emb4 = UNetTimeEmbedding(time_emb_dim, filters[3])
-        
-        self.up_concat3 = UNetUp(filters[3], filters[2], self.is_deconv)
-        self.up_emb3 = UNetTimeEmbedding(time_emb_dim, filters[2])
-        
-        self.up_concat2 = UNetUp(filters[2], filters[1], self.is_deconv)
-        self.up_emb2 = UNetTimeEmbedding(time_emb_dim, filters[1])
-        
-        self.up_concat1 = UNetUp(filters[1], filters[0], self.is_deconv)
-        self.up_emb1 = UNetTimeEmbedding(time_emb_dim, filters[0])
-        
-        # output
-        self.outconv1 = nn.Conv2d(filters[0], self.out_channels, 3, padding=1)
+        self.dec1 = nn.ConvTranspose2d(channel_scale * 4, channel_scale * 4, kernel_size=4, stride=2, padding=1)
+        self.dec2 = nn.ConvTranspose2d(channel_scale * 2, channel_scale * 2, kernel_size=4, stride=2, padding=1)
+        self.dec3 = nn.ConvTranspose2d(channel_scale, channel_scale, kernel_size=4, stride=2, padding=1)
 
-    def forward(self, inputs, t):
+        self.te_dec1 = MyTimeEmbedding(time_emb_dim, channel_scale * 8)
+        self.te_dec2 = MyTimeEmbedding(time_emb_dim, channel_scale * 4)
+        self.te_dec3 = MyTimeEmbedding(time_emb_dim, channel_scale * 2)
+
+        self.up1 = MyTinyUp(size//4, channel_scale * 8)
+        self.up2 = MyTinyUp(size//2, channel_scale * 4)
+        self.up3 = MyTinyBlock(size, channel_scale * 2, channel_scale)
+
+        self.conv_out = nn.Conv2d(channel_scale, out_channels, kernel_size=3, stride=1, padding=1)
+
+    def forward(self, x, t, c=-1):
+        # x : [B, 1, 32, 32]
+        # t : [B]
+
         t = self.time_embed(t)
-        # inputs : [B, 1, 32, 32]
-        
-        conv1 = self.conv1(inputs)  # [B, 64, 32, 32]
-        maxpool1 = self.maxpool1(conv1 + self.emb1(t))  # [B, 64, 16, 16]
+        n = len(x)
+        # t : [B, time_emb_dim]
+        # n : B
 
-        conv2 = self.conv2(maxpool1)  # [B, 128, 16, 16]
-        maxpool2 = self.maxpool2(conv2 + self.emb2(t))  # [B, 128, 8, 8]
+        ### Downsampling
+        enc1 = self.enc1(x + self.te_enc1(t, n))
+        # out1 : (B, 10, 32, 32)
 
-        conv3 = self.conv3(maxpool2)  # [B, 256, 8, 8]
-        maxpool3 = self.maxpool3(conv3 + self.emb3(t))  # [B, 256, 4, 4]
+        enc2 = self.enc2(self.down1(enc1) + self.te_enc2(t, n))
+        # out2 : (B, 20, 16, 16)
 
-        conv4 = self.conv4(maxpool3)  # [B, 512, 4, 4]
-        maxpool4 = self.maxpool4(conv4 + self.emb4(t))  # [B, 512, 2, 2]
+        enc3 = self.end3(self.down2(enc2) + self.te_enc3(t, n))
+        # out3 : (B, 40, 8, 8)
 
-        center = self.center(maxpool4)  # [B, 1024, 2, 2]
 
-        
-        up4 = self.up_concat4(center, conv4) + self.up_emb4(t)  # [B, 512, 4, 4]
-        up3 = self.up_concat3(up4, conv3) + self.up_emb3(t) # [B, 256, 8, 8]
-        up2 = self.up_concat2(up3, conv2) + self.up_emb2(t) # [B, 128, 16, 16]
-        up1 = self.up_concat1(up2, conv1) + self.up_emb1(t) # [B, 64, 32, 32]
+        ### Bottleneck
+        bottleneck = self.bottleneck(self.down3(enc3) + self.te_bottleneck(t, n))
+        # out_mid : (B, 40, 4, 4)
+        # 40 -> 20 -> 40
 
-        out = self.outconv1(up1)  # [B, 1, 32, 32]
+        ### Upsampling
+        dec1 = torch.cat((enc3, self.dec1(bottleneck)), dim=1)
+        # out4 : (B, 80, 8, 8)
+
+        dec1 = self.up1(dec1 + self.te_dec1(t, n))
+        # out4 : (B, 20, 8, 8)
+
+        dec2 = torch.cat((enc2, self.dec2(dec1)), dim=1)
+        # out4 : (B, 40, 16, 16)
+
+        dec2 = self.up2(dec2 + self.te_dec2(t, n))
+        # out5 : (B, 10, 16, 16)
+
+        dec3 = torch.cat((enc1, self.dec3(dec2)), dim=1)
+        # out5 : (B, 20, 32, 32)
+
+        dec3 = self.up3(dec3 + self.te_dec3(t, n))
+        # out5 : (B, 10, 32, 32)
+
+        out = self.conv_out(dec3)
+        # out : (B, 1, 32, 32)
 
         return out
 
+    
 if __name__ == '__main__':
-    unet = UNet(in_c=3, out_c=3, n_steps=1000)
+    unet = UNet(in_channels=3, out_channels=3, n_steps=1000)
     
     B = 64
     t = torch.randint(0, 1000, (B, )) # .type(torch.float32)
+    c = torch.randint(0, 10, (B, )) # .type(torch.float32)
     x = torch.randn(B, 3, 32, 32)
     output = unet(x, t)
 
