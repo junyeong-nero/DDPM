@@ -13,15 +13,20 @@ class DDPM:
     def __init__(self, n_timesteps,
                  train_set=None,
                  test_set=None,
+                 in_channels=1,
+                 out_channels=1,
+                 channel_scale=64,
                  train_batch_size=8,
                  test_batch_size=8) -> None:
 
         self.n_timesteps = n_timesteps
+        self.channel_scale = channel_scale
 
         # UNet for predicting total noise
-        self.g = UNet(in_c=1,
-                      out_c=1,
-                      n_steps=n_timesteps)
+        self.g = UNet(in_channels=in_channels,
+                      out_channels=out_channels,
+                      n_steps=n_timesteps,
+                      channel_scale=channel_scale)
         self.g = self.g
 
         # alpha, betas
@@ -57,8 +62,8 @@ class DDPM:
         for i, data in enumerate(tqdm(self.training_loader)):
 
             # inputs = [B, 1, 32, 32]
-            inputs = data['image']
-            inputs = inputs.type(torch.float32)
+            inputs = data[0] # data['image']
+            inputs = inputs
             # print(inputs.shape)
 
             batch_size = inputs.shape[0]
@@ -102,21 +107,24 @@ class DDPM:
 
             if avg_loss < best_vloss:
                 best_vloss = avg_loss
-                model_path = 'model_{}.pt'.format(epoch)
+                model_path = 'U{}_T{}_E{}.pt'.format(self.channel_scale,
+                                                     self.n_timesteps,
+                                                     epoch)
                 torch.save(self.g.state_dict(), model_path)
 
-        torch.save(torch.tensor(history), 'history.pt')
+            torch.save(torch.tensor(history), 'history.pt')
+
         return history
 
 
-    def evaluate(self, num=None):
+    def evaluate(self, num=None, sampling_type='DDPM', n_jumps=10):
         self.decoder.g = self.g
         result = []
         for i, data in enumerate(tqdm(self.testing_loader)):
 
             # inputs = [B, 1, 32, 32]
-            inputs = data['image']
-            inputs = inputs.type(torch.float32)
+            inputs = data[0] # data['image']
+            inputs = inputs
 
             batch_size = inputs.shape[0]
 
@@ -127,7 +135,11 @@ class DDPM:
             noised_image, epsilon = self.encoder.noise(inputs, t)
 
             # denoised image
-            denoised_image = self.decoder.denoise(noised_image, self.n_timesteps)
+            denoised_image = None
+            if sampling_type == 'DDPM':
+                denoised_image = self.decoder.denoise(noised_image, self.n_timesteps)
+            if sampling_type == 'DDIM':
+                denoised_image = self.decoder.implicit_denoise(noised_image, self.n_timesteps, n_jumps=n_jumps)
 
             result.append((inputs, noised_image, denoised_image))
 
