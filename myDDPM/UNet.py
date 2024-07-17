@@ -2,6 +2,10 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
 def sinusoidal_embedding(n, d):
     # Returns the standard positional embedding
     embedding = torch.tensor([[i / 10_000 ** (2 * j / d) for j in range(d)] for i in range(n)])
@@ -85,11 +89,11 @@ class UNetTimeEmbedding(nn.Module):
 
 class UNet(nn.Module):
 
-    def __init__(self, in_c=1, out_c=1, n_steps=1000, time_emb_dim=100, feature_scale=4, is_deconv=True, is_batchnorm=True):
+    def __init__(self, in_channels=1, out_channels=1, n_steps=1000, time_emb_dim=256, channel_scale=64, feature_scale=5, is_deconv=True, is_batchnorm=True):
         super(UNet, self).__init__()
         self.is_deconv = is_deconv
-        self.in_channels = in_c
-        self.out_channels = out_c
+        self.in_channels = in_channels
+        self.out_channels = out_channels
         self.is_batchnorm = is_batchnorm
         self.feature_scale = feature_scale
         
@@ -98,7 +102,8 @@ class UNet(nn.Module):
         self.time_embed.weight.data = sinusoidal_embedding(n_steps, time_emb_dim)
         self.time_embed.requires_grad_(False)
         
-        filters = [64, 128, 256, 512, 1024]
+        # filters = [64, 128, 256, 512, 1024]
+        filters = [channel_scale * i for i in range(1, 1 + feature_scale)]
         # filters = [int(x / self.feature_scale) for x in filters]
 
         # downsampling
@@ -163,7 +168,6 @@ class UNet(nn.Module):
         out = self.outconv1(up1)  # [B, 1, 32, 32]
 
         return out
-
 
 if __name__ == '__main__':
     unet = UNet(in_c=3, out_c=3, n_steps=1000)
