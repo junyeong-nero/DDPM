@@ -48,10 +48,10 @@ class UNetConv2D(nn.Module):
     
 
 class UNetUp(nn.Module):
-    def __init__(self, in_size, out_size, is_deconv, n_concat=2):
+    def __init__(self, in_size, out_size, is_deconv=True, is_batchnorm=True):
         super(UNetUp, self).__init__()
         # self.conv = unetConv2(in_size + (n_concat - 2) * out_size, out_size, False)
-        self.conv = UNetConv2D(out_size*2, out_size, False)
+        self.conv = UNetConv2D(out_size*2, out_size, is_batchnorm)
         if is_deconv:
             self.up = nn.ConvTranspose2d(in_size, out_size, kernel_size=4, stride=2, padding=1)
         else:
@@ -121,18 +121,19 @@ class UNet(nn.Module):
         self.maxpool4 = nn.MaxPool2d(kernel_size=2)
 
         self.center = UNetConv2D(filters[3], filters[4], self.is_batchnorm)
+        self.emb_center = UNetTimeEmbedding(time_emb_dim, filters[4])
 
         # upsampling
-        self.up_concat4 = UNetUp(filters[4], filters[3], self.is_deconv)
+        self.up_concat4 = UNetUp(filters[4], filters[3], self.is_deconv, self.is_batchnorm)
         self.up_emb4 = UNetTimeEmbedding(time_emb_dim, filters[3])
         
-        self.up_concat3 = UNetUp(filters[3], filters[2], self.is_deconv)
+        self.up_concat3 = UNetUp(filters[3], filters[2], self.is_deconv, self.is_batchnorm)
         self.up_emb3 = UNetTimeEmbedding(time_emb_dim, filters[2])
         
-        self.up_concat2 = UNetUp(filters[2], filters[1], self.is_deconv)
+        self.up_concat2 = UNetUp(filters[2], filters[1], self.is_deconv, self.is_batchnorm)
         self.up_emb2 = UNetTimeEmbedding(time_emb_dim, filters[1])
         
-        self.up_concat1 = UNetUp(filters[1], filters[0], self.is_deconv)
+        self.up_concat1 = UNetUp(filters[1], filters[0], self.is_deconv, self.is_batchnorm)
         self.up_emb1 = UNetTimeEmbedding(time_emb_dim, filters[0])
         
         # output
@@ -154,8 +155,8 @@ class UNet(nn.Module):
         conv4 = self.conv4(maxpool3)  # [B, 512, 4, 4]
         maxpool4 = self.maxpool4(conv4 + self.emb4(t))  # [B, 512, 2, 2]
 
-        center = self.center(maxpool4)  # [B, 1024, 2, 2]
-
+        center = self.center(maxpool4) + self.emb_center(t) # [B, 1024, 2, 2]
+        
         
         up4 = self.up_concat4(center, conv4) + self.up_emb4(t)  # [B, 512, 4, 4]
         up3 = self.up_concat3(up4, conv3) + self.up_emb3(t) # [B, 256, 8, 8]
@@ -167,7 +168,7 @@ class UNet(nn.Module):
         return out
 
 if __name__ == '__main__':
-    unet = UNet(in_c=3, out_c=3, n_steps=1000)
+    unet = UNet(in_channels=3, out_channels=3, n_steps=1000)
     
     B = 64
     t = torch.randint(0, 1000, (B, )) # .type(torch.float32)

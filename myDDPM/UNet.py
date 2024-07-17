@@ -64,7 +64,7 @@ class UNet(nn.Module):
                  n_steps=1000,
                  time_emb_dim=256,
                  n_classes=10,
-                 class_emb_dim=64,
+                 class_emb_dim=256,
                  channel_scale=64):
         super(UNet, self).__init__()
 
@@ -117,28 +117,32 @@ class UNet(nn.Module):
 
         self.conv_out = nn.Conv2d(channel_scale, out_channels, kernel_size=3, stride=1, padding=1)
 
-    def forward(self, x, t, c=-1):
+    def forward(self, x, t, c=None):
         # x : [B, 1, 32, 32]
         # t : [B]
 
         t = self.time_embed(t)
+        c = torch.full_like(t, 0) if c is None else self.class_embed(c)
+        
+        emb = t + c
+            
         n = len(x)
         # t : [B, time_emb_dim]
         # n : B
 
         ### Downsampling
-        enc1 = self.enc1(x + self.te_enc1(t, n))
+        enc1 = self.enc1(x + self.te_enc1(emb, n))
         # out1 : (B, 10, 32, 32)
 
-        enc2 = self.enc2(self.down1(enc1) + self.te_enc2(t, n))
+        enc2 = self.enc2(self.down1(enc1) + self.te_enc2(emb, n))
         # out2 : (B, 20, 16, 16)
 
-        enc3 = self.end3(self.down2(enc2) + self.te_enc3(t, n))
+        enc3 = self.end3(self.down2(enc2) + self.te_enc3(emb, n))
         # out3 : (B, 40, 8, 8)
 
 
         ### Bottleneck
-        bottleneck = self.bottleneck(self.down3(enc3) + self.te_bottleneck(t, n))
+        bottleneck = self.bottleneck(self.down3(enc3) + self.te_bottleneck(emb, n))
         # out_mid : (B, 40, 4, 4)
         # 40 -> 20 -> 40
 
@@ -146,19 +150,19 @@ class UNet(nn.Module):
         dec1 = torch.cat((enc3, self.dec1(bottleneck)), dim=1)
         # out4 : (B, 80, 8, 8)
 
-        dec1 = self.up1(dec1 + self.te_dec1(t, n))
+        dec1 = self.up1(dec1 + self.te_dec1(emb, n))
         # out4 : (B, 20, 8, 8)
 
         dec2 = torch.cat((enc2, self.dec2(dec1)), dim=1)
         # out4 : (B, 40, 16, 16)
 
-        dec2 = self.up2(dec2 + self.te_dec2(t, n))
+        dec2 = self.up2(dec2 + self.te_dec2(emb, n))
         # out5 : (B, 10, 16, 16)
 
         dec3 = torch.cat((enc1, self.dec3(dec2)), dim=1)
         # out5 : (B, 20, 32, 32)
 
-        dec3 = self.up3(dec3 + self.te_dec3(t, n))
+        dec3 = self.up3(dec3 + self.te_dec3(emb, n))
         # out5 : (B, 10, 32, 32)
 
         out = self.conv_out(dec3)
@@ -174,6 +178,6 @@ if __name__ == '__main__':
     t = torch.randint(0, 1000, (B, )) # .type(torch.float32)
     c = torch.randint(0, 10, (B, )) # .type(torch.float32)
     x = torch.randn(B, 3, 32, 32)
-    output = unet(x, t)
+    output = unet(x, t, c)
 
     print(output.shape)
