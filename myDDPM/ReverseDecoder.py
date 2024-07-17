@@ -39,13 +39,12 @@ class ReverseDecoder:
 
         return noise_data
 
-    def implicit_denoise(self, noise_data, time_step, n_jumps=10, sigma=0):
+    def implicit_denoise(self, noise_data, time_step, sampling_time_step=10, sigma=0):
         # noise_data : [B, 1, 32, 32]
         # time_step : INT
 
         batch_size = noise_data.shape[0]
-        gap = (time_step - 1) // n_jumps
-        tau = [time_step - 1 - t * gap for t in range(n_jumps)]
+        tau = list(range(0, time_step, time_step // sampling_time_step))
         S = len(tau)
         # print(tau)
 
@@ -53,20 +52,20 @@ class ReverseDecoder:
         with torch.no_grad():
 
             # step : [T - 1, T - 2, .. 2, 1, 0]
-            for i in range(S):
+            for i in range(S - 1, -1, -1):
 
                 t = torch.full((batch_size, ), tau[i])
                 t = t.reshape(-1, 1, 1, 1)
                 alpha_t = self.noise_schedule._alphas[t]
 
                 alpha_t_1 = torch.full((batch_size, 1, 1, 1,), 1)
-                if i < S - 1:
-                    t_1 = torch.full((batch_size, ), tau[i + 1])
+                if i - 1 >= 0:
+                    t_1 = torch.full((batch_size, ), tau[i - 1])
                     t_1 = t_1.reshape(-1, 1, 1, 1)
                     alpha_t_1 = self.noise_schedule._alphas[t_1]
 
                 predict_noise = self.g(noise_data, t)
-                first = torch.sqrt(alpha_t / alpha_t_1) * (noise_data - torch.sqrt(1 - alpha_t) * predict_noise)
+                first = torch.sqrt(alpha_t_1) * ((noise_data - torch.sqrt(1 - alpha_t) * predict_noise) / torch.sqrt(alpha_t))
                 second = torch.sqrt(1 - alpha_t_1) * predict_noise
 
                 noise_data = first + second
