@@ -17,6 +17,7 @@ class DDPM:
                  out_channels=1,
                  channel_scale=64,
                  train_batch_size=8,
+                 coef_lambda=0.5,
                  test_batch_size=8) -> None:
 
         self.n_timesteps = n_timesteps
@@ -56,7 +57,7 @@ class DDPM:
         self.g.eval()
 
 
-    def train_one_epoch(self, n_iter_limit=None):
+    def train_one_epoch(self, n_iter_limit=None, p_uncond=0.1):
         running_loss = 0
 
         for i, data in enumerate(tqdm(self.training_loader)):
@@ -75,8 +76,10 @@ class DDPM:
             # outputs = [B, 1, 28, 28]
             noised_image, epsilon = self.encoder.noise(inputs, t)
             
-            ### Unconditional training
-            outputs = self.g(noised_image, t)
+            if torch.rand((1, )).item() < p_uncond:
+                outputs = self.g(noised_image, t)
+            else:
+                outputs = self.g(noised_image, t, c)
             loss = self.lossFunction(outputs, epsilon)
 
             # Adjust learning weights
@@ -84,27 +87,13 @@ class DDPM:
             loss.backward()
             self.optimizer.step()
             
-            running_loss += loss.item()
-            
-            ### Conditional training
-            outputs = self.g(noised_image, t)
-            loss = self.lossFunction(outputs, epsilon)
-
-            # Adjust learning weights
-            self.optimizer.zero_grad()
-            loss.backward()
-            self.optimizer.step()
-
-            # Gather data and report
-            running_loss += loss.item()
-
             if i == n_iter_limit:
                 break
 
-        return running_loss / (len(self.training_loader) * 2)
+        return running_loss / len(self.training_loader)
     
 
-    def train(self, n_epoch=5, n_iter_limit=None):
+    def train(self, n_epoch=5, n_iter_limit=None, p_uncond=0.1):
         best_vloss = 1_000_000
         history = []
 
@@ -113,11 +102,12 @@ class DDPM:
 
             # Make sure gradient tracking is on, and do a pass over the data
             self.g.train(True)
-            avg_loss = self.train_one_epoch(n_iter_limit=n_iter_limit)
+            avg_loss = self.train_one_epoch(n_iter_limit=n_iter_limit,
+                                            p_uncond=p_uncond)
             history.append(avg_loss)
             print('# epoch {} avg_loss: {}'.format(epoch + 1, avg_loss))
 
-            model_path = '/checkpoint/U{}_T{}_E{}.pt'.format(self.channel_scale,
+            model_path = 'U{}_T{}_E{}.pt'.format(self.channel_scale,
                                                              self.n_timesteps,
                                                              epoch + 1)
             torch.save(self.g.state_dict(), model_path)
@@ -126,7 +116,7 @@ class DDPM:
         return history
 
 
-    def evaluate(self, num=None, sampling_type='DDPM', sampling_time_step=10):
+    def evaluate(self, num=None, sampling_type='DDPM', sampling_time_step=10, guidance=True):
         self.decoder.g = self.g
         result = []
         for i, data in enumerate(tqdm(self.testing_loader)):
@@ -139,7 +129,7 @@ class DDPM:
 
             # timestep
             t = torch.full((batch_size, ), self.n_timesteps - 1)
-            c = label
+            c = label if guidance else None
 
             # outputs = [B, 1, 28, 28]
             noised_image, epsilon = self.encoder.noise(inputs, t)
@@ -147,11 +137,12 @@ class DDPM:
             # denoised image
             denoised_image = None
             if sampling_type == 'DDPM':
-                denoised_image = self.decoder.denoise(noised_image, self.n_timesteps)
+                denoised_image = self.decoder.denoise(noised_image, self.n_timesteps, c=c)
             if sampling_type == 'DDIM':
                 denoised_image = self.decoder.implicit_denoise(noised_image,
-                                                             self.n_timesteps,
-                                                             sampling_time_step=sampling_time_step)
+                                                               self.n_timesteps,
+                                                               c=c,
+                                                               sampling_time_step=sampling_time_step)
 
             result.append((inputs, noised_image, denoised_image))
 

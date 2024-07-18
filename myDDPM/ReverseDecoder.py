@@ -1,5 +1,4 @@
 import torch
-import torch
 
 class ReverseDecoder:
 
@@ -39,7 +38,7 @@ class ReverseDecoder:
 
         return noise_data
 
-    def implicit_denoise(self, noise_data, time_step, c=None, sampling_time_step=10, sigma=0):
+    def implicit_denoise(self, noise_data, time_step, c=None, w=0, sampling_time_step=10):
         # noise_data : [B, 1, 32, 32]
         # c : [B]
         # time_step : INT
@@ -65,7 +64,7 @@ class ReverseDecoder:
                     t_1 = t_1.reshape(-1, 1, 1, 1)
                     alpha_t_1 = self.noise_schedule._alphas[t_1]
 
-                predict_noise = self.g(noise_data, t, c)
+                predict_noise = (1 + w) * self.g(noise_data, t, c) - w * self.g(noise_data, t)
                 first = torch.sqrt(alpha_t_1) * ((noise_data - torch.sqrt(1 - alpha_t) * predict_noise) / torch.sqrt(alpha_t))
                 second = torch.sqrt(1 - alpha_t_1) * predict_noise
 
