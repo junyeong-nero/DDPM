@@ -62,21 +62,32 @@ class DDPM:
         for i, data in enumerate(tqdm(self.training_loader)):
 
             # inputs = [B, 1, 32, 32]
-            inputs = data[0] # data['image']
+            inputs, label = data
             inputs = inputs
             # print(inputs.shape)
 
             batch_size = inputs.shape[0]
 
-            # sampled timestep
+            # sampled timestep and conditional variables
             t = torch.randint(0, self.n_timesteps, (batch_size, ))
+            c = label
 
             # outputs = [B, 1, 28, 28]
             noised_image, epsilon = self.encoder.noise(inputs, t)
+            
+            ### Unconditional training
             outputs = self.g(noised_image, t)
-            # Utils.print_image(noised_image[0][0])
+            loss = self.lossFunction(outputs, epsilon)
 
-            # Compute the loss and its gradients
+            # Adjust learning weights
+            self.optimizer.zero_grad()
+            loss.backward()
+            self.optimizer.step()
+            
+            running_loss += loss.item()
+            
+            ### Conditional training
+            outputs = self.g(noised_image, t)
             loss = self.lossFunction(outputs, epsilon)
 
             # Adjust learning weights
@@ -90,7 +101,8 @@ class DDPM:
             if i == n_iter_limit:
                 break
 
-        return running_loss / len(self.training_loader)
+        return running_loss / (len(self.training_loader) * 2)
+    
 
     def train(self, n_epoch=5, n_iter_limit=None):
         best_vloss = 1_000_000
@@ -105,13 +117,10 @@ class DDPM:
             history.append(avg_loss)
             print('# epoch {} avg_loss: {}'.format(epoch + 1, avg_loss))
 
-            if avg_loss < best_vloss:
-                best_vloss = avg_loss
-                model_path = 'U{}_T{}_E{}.pt'.format(self.channel_scale,
-                                                     self.n_timesteps,
-                                                     epoch)
-                torch.save(self.g.state_dict(), model_path)
-
+            model_path = '/checkpoint/U{}_T{}_E{}.pt'.format(self.channel_scale,
+                                                             self.n_timesteps,
+                                                             epoch + 1)
+            torch.save(self.g.state_dict(), model_path)
             torch.save(torch.tensor(history), 'history.pt')
 
         return history
@@ -123,13 +132,14 @@ class DDPM:
         for i, data in enumerate(tqdm(self.testing_loader)):
 
             # inputs = [B, 1, 32, 32]
-            inputs = data[0] # data['image']
+            inputs, label = data # data['image']
             inputs = inputs
 
             batch_size = inputs.shape[0]
 
             # timestep
             t = torch.full((batch_size, ), self.n_timesteps - 1)
+            c = label
 
             # outputs = [B, 1, 28, 28]
             noised_image, epsilon = self.encoder.noise(inputs, t)
@@ -140,8 +150,8 @@ class DDPM:
                 denoised_image = self.decoder.denoise(noised_image, self.n_timesteps)
             if sampling_type == 'DDIM':
                 denoised_image = self.decoder.implicit_denoise(noised_image,
-                                                               self.n_timesteps,
-                                                               sampling_time_step=sampling_time_step)
+                                                             self.n_timesteps,
+                                                             sampling_time_step=sampling_time_step)
 
             result.append((inputs, noised_image, denoised_image))
 
