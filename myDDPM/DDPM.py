@@ -3,7 +3,7 @@ import tqdm
 import torch
 from torch.utils.data import DataLoader
 
-from myDDPM.UNet import UNet
+from myDDPM.UNetFixed import UNet
 from myDDPM.ForwardEncoder import ForwardEncoder
 from myDDPM.ReverseDecoder import ReverseDecoder
 from myDDPM.NoiseSchedule import NoiseSchedule
@@ -117,7 +117,7 @@ class DDPM:
         return history
 
 
-    def evaluate(self, num=None, sampling_type='DDPM', n_jumps=10):
+    def evaluate(self, num=None, sampling_type='DDPM', sampling_time_step=10):
         self.decoder.g = self.g
         result = []
         for i, data in enumerate(tqdm(self.testing_loader)):
@@ -139,7 +139,9 @@ class DDPM:
             if sampling_type == 'DDPM':
                 denoised_image = self.decoder.denoise(noised_image, self.n_timesteps)
             if sampling_type == 'DDIM':
-                denoised_image = self.decoder.implicit_denoise(noised_image, self.n_timesteps, n_jumps=n_jumps)
+                denoised_image = self.decoder.implicit_denoise(noised_image,
+                                                               self.n_timesteps,
+                                                               sampling_time_step=sampling_time_step)
 
             result.append((inputs, noised_image, denoised_image))
 
