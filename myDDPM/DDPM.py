@@ -87,6 +87,8 @@ class DDPM:
             loss.backward()
             self.optimizer.step()
             
+            running_loss += loss.item()
+            
             if i == n_iter_limit:
                 break
 
