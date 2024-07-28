@@ -5,9 +5,9 @@ from datasets import load_dataset
 
 from myDDPM import Utils
 from myDDPM.DDPM import DDPM
-from myDDPM.ForwardEncoder import ForwardEncoder
-from myDDPM.ReverseDecoder import ReverseDecoder
-from myDDPM.NoiseSchedule import NoiseSchedule
+from myDDPM.encoder.ForwardEncoder import ForwardEncoder
+from myDDPM.decoder.ReverseDecoder import ReverseDecoder
+from myDDPM.scheduler.NoiseSchedule import NoiseSchedule
 
 
 TIME_STEPS = 1000

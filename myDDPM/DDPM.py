@@ -3,10 +3,10 @@ import tqdm
 import torch
 from torch.utils.data import DataLoader
 
-from myDDPM.UNetFixed import UNet
-from myDDPM.ForwardEncoder import ForwardEncoder
-from myDDPM.ReverseDecoder import ReverseDecoder
-from myDDPM.NoiseSchedule import NoiseSchedule
+from myDDPM.modules import UNet
+from myDDPM.encoder.ForwardEncoder import ForwardEncoder
+from myDDPM.decoder.ReverseDecoder import ReverseDecoder
+from myDDPM.scheduler.NoiseSchedule import NoiseSchedule
 
 class DDPM:
 
