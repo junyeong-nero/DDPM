@@ -2,41 +2,109 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+class PositionalEmbedding(nn.Module):
+    
+    def __init__(self, num_steps, time_emb_dim) -> None:
+        super(PositionalEmbedding, self).__init__()
+        
+        self.time_embed = nn.Embedding(num_steps, time_emb_dim)
+        self.time_embed.weight.data = self.sinusoidal_embedding(num_steps, time_emb_dim)
+        self.time_embed.requires_grad_(False)
+        
+    def sinusoidal_embedding(self, n, d):
+        # Returns the standard positional embedding
+        embedding = torch.tensor([[i / 10_000 ** (2 * j / d) for j in range(d)] for i in range(n)])
+        sin_mask = torch.arange(0, n, 2)
+        embedding[sin_mask] = torch.sin(embedding[sin_mask])
+        embedding[1 - sin_mask] = torch.cos(embedding[sin_mask])
 
-def sinusoidal_embedding(n, d):
-    # Returns the standard positional embedding
-    embedding = torch.tensor([[i / 10_000 ** (2 * j / d) for j in range(d)] for i in range(n)])
-    sin_mask = torch.arange(0, n, 2)
-
-    embedding[sin_mask] = torch.sin(embedding[sin_mask])
-    embedding[1 - sin_mask] = torch.cos(embedding[sin_mask])
-
-    return embedding
-
+        return embedding
+        
+    def forward(self, input):
+        return self.time_embed(input)
 
 class SelfAttentionBlock(nn.Module):
-    
-    def __init__(self, in_channels, out_channels, kernel_size=1, stride=1) -> None:
+    """
+    Self-attention blocks are applied at the 16x16 resolution in the original DDPM paper.
+    Implementation is based on "Attention Is All You Need" paper, Vaswani et al., 2015
+    (https://arxiv.org/pdf/1706.03762.pdf)
+    """
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        num_heads = 2,
+        num_groups = 32,
+    ):
         super(SelfAttentionBlock, self).__init__()
+        # For each of heads use d_k = d_v = d_model / num_heads
+        self.num_heads = num_heads
+        self.d_model = out_channels
+        self.d_keys = out_channels // num_heads
+        self.d_values = out_channels // num_heads
+
+        self.W_Q = nn.Linear(in_channels, out_channels)
+        self.W_K = nn.Linear(in_channels, out_channels)
+        self.W_V = nn.Linear(in_channels, out_channels)
+
+        self.final_projection = nn.Linear(out_channels, out_channels)
+        self.norm = nn.GroupNorm(num_channels=out_channels, num_groups=num_groups)
+
+    def split_features_for_heads(self, tensor):
+        batch, hw, emb_dim = tensor.shape
+        channels_per_head = emb_dim // self.num_heads
+        heads_splitted_tensor = torch.split(tensor, split_size_or_sections=channels_per_head, dim=-1)
+        heads_splitted_tensor = torch.stack(heads_splitted_tensor, 1)
+        return heads_splitted_tensor
+
+    def attention(self, q, k, v):
+        B, C, H, W = q.shape
+
         
-        self.W_Q = nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size, stride=stride)
-        self.W_K = nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size, stride=stride)
-        self.W_V = nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size, stride=stride)
-        self.activation = nn.Softmax(dim=1)
-        
-    def forward(self, query, key, value):
-        B, C, W, H = query.shape
-        d_k = torch.tensor(C)
-        
-        q = self.W_Q(query)
-        k = self.W_K(key)
-        v = self.W_V(value)
-        
-        # mutlicative cross attention
-        out = self.activation(q @ k / torch.sqrt(d_k)) @ v
-        return out
-        
-        
+        q = q.view(B, C, H * W).transpose(1, 2)
+        k = k.view(B, C, H * W).transpose(1, 2)
+        v = v.view(B, C, H * W).transpose(1, 2)
+        # [B, H * W, C_in] 
+
+        q = self.W_Q(q)
+        k = self.W_K(k)   
+        v = self.W_V(v)
+        # N = H * W
+        # [B, N, C_out]
+        # print(Q.shape)
+
+        Q = self.split_features_for_heads(q)
+        K = self.split_features_for_heads(k)
+        V = self.split_features_for_heads(v)
+        # [B, num_heads, N, C_out / num_heads]
+        # print(Q.shape)
+
+        scale = self.d_keys ** -0.5
+        attention_scores = torch.softmax(torch.matmul(Q, K.transpose(-1, -2)) * scale, dim=-1)
+        attention_scores = torch.matmul(attention_scores, V)
+        # [B, num_heads, N, C_out / num_heads]
+        # print(attention_scores.shape)
+
+        attention_scores = attention_scores.permute(0, 2, 1, 3).contiguous()
+        # [B, num_heads, N, C_out / num_heads] --> [B, N, num_heads, C_out / num_heads]
+
+        concatenated_heads_attention_scores = attention_scores.view(B, H * W, self.d_model)
+        # [B, N, num_heads, C_out / num_heads] --> [batch, N, C_out]
+
+        linear_projection = self.final_projection(concatenated_heads_attention_scores)
+        linear_projection = linear_projection.transpose(-1, -2).reshape(B, self.d_model, H, W)
+        # [B, N, C_out] -> [B, C_out, N] -> [B, C_out, H, W]        
+        # print('linear_projection', linear_projection.shape)
+        # print('linear_projection', v.shape)
+
+        # Residual connection + norm
+        v = v.transpose(-1, -2).reshape(B, self.d_model, H, W)
+        x = self.norm(linear_projection + v)
+        return x
+    
+    def forward(self, x):
+        return self.attention(x, x, x)
+    
 
 class UNetConv2D(nn.Module):
     def __init__(
@@ -48,7 +116,7 @@ class UNetConv2D(nn.Module):
         kernel_size=3, 
         stride = 1, 
         padding = 1,
-        num_groups = 4
+        num_groups = 32
     ):
         super(UNetConv2D, self).__init__()
         self.n = n
@@ -155,14 +223,10 @@ class UNet(nn.Module):
         self.feature_scale = feature_scale
 
         # time embedding
-        self.time_embed = nn.Embedding(n_steps, time_emb_dim)
-        self.time_embed.weight.data = sinusoidal_embedding(n_steps, time_emb_dim)
-        self.time_embed.requires_grad_(False)
+        self.time_embed = PositionalEmbedding(n_steps, time_emb_dim)
 
         # conditional variable embedding
-        self.class_embed = nn.Embedding(n_classes, class_emb_dim)
-        self.class_embed.weight.data = sinusoidal_embedding(n_classes, class_emb_dim)
-        self.class_embed.requires_grad_(False)
+        self.class_embed = PositionalEmbedding(n_classes, class_emb_dim)
 
         # filters = [64, 128, 256, 512, 1024]
         filters = [channel_scale * i for i in range(1, 1 + feature_scale)]
@@ -184,7 +248,9 @@ class UNet(nn.Module):
         self.cemb3 = UNetTimeEmbedding(class_emb_dim, filters[2])
         self.maxpool3 = nn.MaxPool2d(kernel_size=2)
 
-        self.conv4 = UNetConv2D(filters[2], filters[3], self.is_batchnorm)
+        # Self-attention Block
+        # self.conv4 = UNetConv2D(filters[2], filters[3], self.is_batchnorm)
+        self.conv4 = SelfAttentionBlock(filters[2], filters[3])
         self.temb4 = UNetTimeEmbedding(time_emb_dim, filters[3])
         self.cemb4 = UNetTimeEmbedding(class_emb_dim, filters[3])
         self.maxpool4 = nn.MaxPool2d(kernel_size=2)
@@ -264,8 +330,4 @@ if __name__ == '__main__':
     x = torch.randn(B, 3, 32, 32)
     c = torch.randint(0, 10, (B, ))
     output = unet(x, t)
-    
-    self_atteniton = SelfAttentionBlock(in_channels=3, out_channels=3)
-    
-    output = self_atteniton(x, x, x)
     print(output.shape)
