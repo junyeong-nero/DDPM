@@ -16,13 +16,29 @@ def sinusoidal_embedding(n, d):
 
 class SelfAttentionBlock(nn.Module):
     
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
+    def __init__(self, in_channels, out_channels, kernel_size=1) -> None:
+        super(SelfAttentionBlock, self).__init__()
         
+        self.W_Q = nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size)
+        # [B, 1, 32, 32] -> [B, 3, 32, 32]
         
+        self.W_K = nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size)
         
-
-    def forward(input):
+        self.W_V = nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size)
+        
+        self.activation = nn.Softmax(dim=1)
+        
+    def forward(self, query, key, value):
+        B, C, W, H = query.shape
+        d_k = torch.tensor(C)
+        
+        q = self.W_Q(query)
+        k = self.W_K(key)
+        v = self.W_V(value)
+        
+        # mutlicative cross attention
+        out = self.activation(q @ k / torch.sqrt(d_k)) @ v
+        return out
         
         
 
@@ -236,5 +252,8 @@ if __name__ == '__main__':
     x = torch.randn(B, 3, 32, 32)
     c = torch.randint(0, 10, (B, ))
     output = unet(x, t)
-
+    
+    self_atteniton = SelfAttentionBlock(in_channels=3, out_channels=3)
+    
+    output = self_atteniton(x, x, x)
     print(output.shape)
