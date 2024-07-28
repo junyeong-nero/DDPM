@@ -3,11 +3,11 @@ import time
 import torch 
 from datasets import load_dataset
 
-from myDDPM import Utils
-from myDDPM.DDPM import DDPM
-from myDDPM.encoder.ForwardEncoder import ForwardEncoder
-from myDDPM.decoder.ReverseDecoder import ReverseDecoder
-from myDDPM.scheduler.NoiseSchedule import NoiseSchedule
+from myDiffusion import Utils
+from myDiffusion.Diffusion import DDPM
+from myDiffusion.encoder.ForwardEncoder import ForwardEncoder
+from myDiffusion.decoder.ReverseDecoder import ReverseDecoder
+from myDiffusion.scheduler.NoiseSchedule import NoiseSchedule
 
 
 TIME_STEPS = 1000
