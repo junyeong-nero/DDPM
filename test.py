@@ -1,5 +1,5 @@
 import torch
-from myDDPM.modules.UNet import SelfAttentionBlock
+from myDiffusion.modules.UNet import SelfAttentionBlock
 
 block = SelfAttentionBlock(in_channels=64, out_channels=64)
 
