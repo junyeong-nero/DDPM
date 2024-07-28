@@ -14,6 +14,18 @@ def sinusoidal_embedding(n, d):
     return embedding
 
 
+class SelfAttentionBlock(nn.Module):
+    
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        
+        
+        
+
+    def forward(input):
+        
+        
+
 class UNetConv2D(nn.Module):
     def __init__(self, in_size, out_size, is_batchnorm, n=3, kernel_size=3, stride=1, padding=1):
         super(UNetConv2D, self).__init__()
@@ -21,11 +33,17 @@ class UNetConv2D(nn.Module):
         self.ks = kernel_size
         self.stride = stride
         self.padding = padding
-        s = stride
-        p = padding
+        
+        self.shortcut = nn.Sequential()
+        if kernel_size != 1 or in_size != out_size:
+            self.shortcut = nn.Sequential(
+                nn.Conv2d(in_size, out_size, kernel_size=1, stride=stride, bias=False),
+                nn.BatchNorm2d(out_size)
+            )
+        
         if is_batchnorm:
             for i in range(1, n + 1):
-                conv = nn.Sequential(nn.Conv2d(in_size, out_size, kernel_size, s, p),
+                conv = nn.Sequential(nn.Conv2d(in_size, out_size, kernel_size, stride, padding),
                                      nn.BatchNorm2d(out_size),
                                      nn.SiLU(inplace=True), )
                 setattr(self, 'conv%d' % i, conv)
@@ -33,17 +51,19 @@ class UNetConv2D(nn.Module):
 
         else:
             for i in range(1, n + 1):
-                conv = nn.Sequential(nn.Conv2d(in_size, out_size, kernel_size, s, p),
+                conv = nn.Sequential(nn.Conv2d(in_size, out_size, kernel_size, stride, padding),
                                      nn.SiLU(inplace=True), )
                 setattr(self, 'conv%d' % i, conv)
                 in_size = out_size
+                
+        
 
     def forward(self, inputs):
         x = inputs
         for i in range(1, self.n + 1):
             conv = getattr(self, 'conv%d' % i)
             x = conv(x)
-
+        x += self.shortcut(inputs)
         return x
 
 
