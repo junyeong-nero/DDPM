@@ -99,7 +99,9 @@ class UNet(nn.Module):
         self.cemb1 = UNetTimeEmbedding(class_emb_dim, filters[0])
         self.maxpool1 = nn.MaxPool2d(kernel_size=2)
 
-        self.conv2 = UNetDown(filters[0], filters[1], is_batchnorm=self.is_batchnorm)
+        self.conv2 = UNetDown(filters[0], filters[1], 
+                              is_batchnorm=self.is_batchnorm,
+                              base_model=SelfAttentionBlock)
         self.temb2 = UNetTimeEmbedding(time_emb_dim, filters[1])
         self.cemb2 = UNetTimeEmbedding(class_emb_dim, filters[1])
         self.maxpool2 = nn.MaxPool2d(kernel_size=2)
@@ -110,11 +112,11 @@ class UNet(nn.Module):
         self.maxpool3 = nn.MaxPool2d(kernel_size=2)
 
         # Self-attention Block
-        # self.conv4 = WideResNetBlock(filters[2], filters[3], self.is_batchnorm)
-        self.conv4 = SelfAttentionBlock(filters[2], filters[3])
+        self.conv4 = UNetDown(filters[2], filters[3], is_batchnorm=self.is_batchnorm)
         self.temb4 = UNetTimeEmbedding(time_emb_dim, filters[3])
         self.cemb4 = UNetTimeEmbedding(class_emb_dim, filters[3])
         self.maxpool4 = nn.MaxPool2d(kernel_size=2)
+        
 
         self.center = UNetDown(filters[3], filters[4], is_batchnorm=self.is_batchnorm)
         self.temb_center = UNetTimeEmbedding(time_emb_dim, filters[4])
@@ -129,7 +131,9 @@ class UNet(nn.Module):
         self.up_temb3 = UNetTimeEmbedding(time_emb_dim, filters[2])
         self.up_cemb3 = UNetTimeEmbedding(class_emb_dim, filters[2])
 
-        self.up_concat2 = UNetUp(filters[2], filters[1], is_deconv=self.is_deconv, is_batchnorm=self.is_batchnorm)
+        self.up_concat2 = UNetUp(filters[2], filters[1], is_deconv=self.is_deconv, 
+                                 is_batchnorm=self.is_batchnorm,
+                                 base_model=SelfAttentionBlock)
         self.up_temb2 = UNetTimeEmbedding(time_emb_dim, filters[1])
         self.up_cemb2 = UNetTimeEmbedding(class_emb_dim, filters[1])
 
