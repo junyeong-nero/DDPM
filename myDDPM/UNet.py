@@ -16,16 +16,12 @@ def sinusoidal_embedding(n, d):
 
 class SelfAttentionBlock(nn.Module):
     
-    def __init__(self, in_channels, out_channels, kernel_size=1) -> None:
+    def __init__(self, in_channels, out_channels, kernel_size=1, stride=1) -> None:
         super(SelfAttentionBlock, self).__init__()
         
-        self.W_Q = nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size)
-        # [B, 1, 32, 32] -> [B, 3, 32, 32]
-        
-        self.W_K = nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size)
-        
-        self.W_V = nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size)
-        
+        self.W_Q = nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size, stride=stride)
+        self.W_K = nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size, stride=stride)
+        self.W_V = nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size, stride=stride)
         self.activation = nn.Softmax(dim=1)
         
     def forward(self, query, key, value):
@@ -43,7 +39,17 @@ class SelfAttentionBlock(nn.Module):
         
 
 class UNetConv2D(nn.Module):
-    def __init__(self, in_size, out_size, is_batchnorm, n=3, kernel_size=3, stride=1, padding=1):
+    def __init__(
+        self, 
+        in_size, 
+        out_size, 
+        is_batchnorm, 
+        n = 3, 
+        kernel_size=3, 
+        stride = 1, 
+        padding = 1,
+        num_groups = 4
+    ):
         super(UNetConv2D, self).__init__()
         self.n = n
         self.ks = kernel_size
@@ -54,25 +60,31 @@ class UNetConv2D(nn.Module):
         if kernel_size != 1 or in_size != out_size:
             self.shortcut = nn.Sequential(
                 nn.Conv2d(in_size, out_size, kernel_size=1, stride=stride, bias=False),
-                nn.BatchNorm2d(out_size)
+                nn.GroupNorm(num_groups=num_groups, num_channels=out_size)
+                # nn.BatchNorm2d(out_size)
             )
         
         if is_batchnorm:
             for i in range(1, n + 1):
-                conv = nn.Sequential(nn.Conv2d(in_size, out_size, kernel_size, stride, padding),
-                                     nn.BatchNorm2d(out_size),
-                                     nn.SiLU(inplace=True), )
+                conv = nn.Sequential(
+                    nn.Conv2d(in_size, out_size, kernel_size, stride, padding),
+                    #  nn.BatchNorm2d(out_size),
+                    nn.GroupNorm(num_groups=num_groups, num_channels=out_size),
+                    nn.SiLU(inplace=True)
+                )
                 setattr(self, 'conv%d' % i, conv)
                 in_size = out_size
 
         else:
             for i in range(1, n + 1):
-                conv = nn.Sequential(nn.Conv2d(in_size, out_size, kernel_size, stride, padding),
-                                     nn.SiLU(inplace=True), )
+                conv = nn.Sequential(
+                    nn.Conv2d(in_size, out_size, kernel_size, stride, padding),
+                    nn.SiLU(inplace=True)
+                )
                 setattr(self, 'conv%d' % i, conv)
                 in_size = out_size
                 
-        
+
 
     def forward(self, inputs):
         x = inputs
