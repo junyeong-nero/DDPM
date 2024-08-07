@@ -77,7 +77,7 @@ class WideResNetBlock(nn.Module):
             x = conv(x)
         x += self.shortcut(inputs)
         return x
-    
+
 
 class MultiHeadAttentionBlock(nn.Module):
     def __init__(
@@ -113,7 +113,7 @@ class MultiHeadAttentionBlock(nn.Module):
 
     def attention(self, q, k, v):
         
-        B, C, H, W = v.shape
+        B, C, H, W = q.shape
         q = q.view(B, C, q.shape[2] * q.shape[3]).transpose(1, 2)
         k = k.view(B, C, k.shape[2] * k.shape[3]).transpose(1, 2)
         v = v.view(B, C, v.shape[2] * v.shape[3]).transpose(1, 2)
@@ -152,14 +152,14 @@ class MultiHeadAttentionBlock(nn.Module):
         # print('linear_projection', v.shape)
 
         # Residual connection + norm
-        v = v.transpose(-1, -2).reshape(B, self.d_model, H, W)
+        out = linear_projection
         if self.is_batchnorm:
-            x = self.norm(linear_projection + v)
-        return x
+            v = v.transpose(-1, -2).reshape(B, self.d_model, H, W)
+            out = self.norm(out + v)
+        return out
     
     def forward(self, q, k, v):
         return self.attention(q, k, v)
-    
     
     
 class SelfAttentionBlock(MultiHeadAttentionBlock):

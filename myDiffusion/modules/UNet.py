@@ -82,7 +82,6 @@ class UNet(nn.Module):
         self.in_channels = in_channels
         self.out_channels = out_channels
         self.is_batchnorm = is_batchnorm
-        self.feature_scale = feature_scale
 
         # time embedding
         self.time_embed = PositionalEmbedding(n_steps, time_emb_dim)
@@ -95,6 +94,7 @@ class UNet(nn.Module):
         else:
             feature_scale = len(custom_scale) - 1
             filters = custom_scale
+        self.feature_scale = feature_scale
         
         # Downsampling
         filters[0] = in_channels
@@ -110,7 +110,8 @@ class UNet(nn.Module):
             maxpool = nn.MaxPool2d(kernel_size=2)
             cross_attention = MultiHeadAttentionBlock(
                 in_channels=filters[i],
-                out_channels=filters[i]
+                out_channels=filters[i],
+                is_batchnorm=False
             )
             
             setattr(self, 'down_conv%d' % i, conv)
@@ -126,7 +127,8 @@ class UNet(nn.Module):
         self.cemb_center = UNetTimeEmbedding(class_emb_dim, filters[-1])
         self.cross_attention_center = MultiHeadAttentionBlock(
             in_channels=filters[-1],
-            out_channels=filters[-1]
+            out_channels=filters[-1],
+            is_batchnorm=False
         )
 
         # upsampling
@@ -143,7 +145,8 @@ class UNet(nn.Module):
             cemb = UNetTimeEmbedding(class_emb_dim, filters[i])
             cross_attention = MultiHeadAttentionBlock(
                 in_channels=filters[i],
-                out_channels=filters[i]
+                out_channels=filters[i],
+                is_batchnorm=False
             )
             
             setattr(self, 'up_conv%d' % i, conv)
@@ -178,21 +181,20 @@ class UNet(nn.Module):
             x = conv(x)
             downsampling_result.append(x)
             
-            B, C, H, W = x.shape
-            emb = temb(t) + (cemb(c) if c is not None else 0)
-            emb = emb.repeat(1, 1, H, W)
-            
-            x = CA(x, emb, emb)
+            if c is not None:
+                context_emb = cemb(c)
+                x = CA(x, context_emb, context_emb)
+            x += temb(t)
             x = maxpool(x)
             
         
         # BOTTLENECK
             
         x = self.center(x)
-        B, C, H, W = x.shape
-        emb = self.temb_center(t) + (self.cemb_center(c) if c is not None else 0)
-        emb = emb.repeat(1, 1, H, W)
-        x = self.cross_attention_center(x, emb, emb)
+        if c is not None:
+            context_emb = self.cemb_center(c)
+            x = self.cross_attention_center(x, context_emb, context_emb)
+        x += self.temb_center(t)
         
         # UP-SAMPLING
 
@@ -204,10 +206,11 @@ class UNet(nn.Module):
             CA = getattr(self, 'up_cross_attention%d' % i)
             
             x = conv(x, downsampling_result[i])
-            B, C, H, W = x.shape
-            emb = temb(t) + (cemb(c) if c is not None else 0)
-            emb = emb.repeat(1, 1, H, W)
-            x = CA(x, emb, emb)  # [B, 512, 4, 4]
+        
+            if c is not None:
+                context_emb = cemb(c)
+                x = CA(x, context_emb, context_emb)
+            x += temb(t)
 
         return self.outconv(x)
     
