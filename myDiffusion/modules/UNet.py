@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from layer import SelfAttentionBlock, PositionalEmbedding, WideResNetBlock
+from layer import SelfAttentionBlock, PositionalEmbedding, WideResNetBlock, MultiHeadAttentionBlock
 
 class UNetDown(nn.Module):
 
@@ -73,6 +73,7 @@ class UNet(nn.Module):
         class_emb_dim = 64,
         channel_scale = 64,
         feature_scale = 5,
+        custom_scale = None,
         is_deconv = True,
         is_batchnorm = True
     ):
@@ -88,107 +89,133 @@ class UNet(nn.Module):
 
         # conditional variable embedding
         self.class_embed = PositionalEmbedding(n_classes, class_emb_dim)
-
-        # filters = [64, 128, 256, 512, 1024]
-        filters = [channel_scale * i for i in range(1, 1 + feature_scale)]
-        # filters = [int(x / self.feature_scale) for x in filters]
-
-        # downsampling
-        self.conv1 = UNetDown(self.in_channels, filters[0], is_batchnorm=self.is_batchnorm)
-        self.temb1 = UNetTimeEmbedding(time_emb_dim, filters[0])
-        self.cemb1 = UNetTimeEmbedding(class_emb_dim, filters[0])
-        self.maxpool1 = nn.MaxPool2d(kernel_size=2)
-
-        self.conv2 = UNetDown(filters[0], filters[1], 
-                              is_batchnorm=self.is_batchnorm,
-                              base_model=SelfAttentionBlock)
-        self.temb2 = UNetTimeEmbedding(time_emb_dim, filters[1])
-        self.cemb2 = UNetTimeEmbedding(class_emb_dim, filters[1])
-        self.maxpool2 = nn.MaxPool2d(kernel_size=2)
-
-        self.conv3 = UNetDown(filters[1], filters[2], is_batchnorm=self.is_batchnorm)
-        self.temb3 = UNetTimeEmbedding(time_emb_dim, filters[2])
-        self.cemb3 = UNetTimeEmbedding(class_emb_dim, filters[2])
-        self.maxpool3 = nn.MaxPool2d(kernel_size=2)
-
-        # Self-attention Block
-        self.conv4 = UNetDown(filters[2], filters[3], is_batchnorm=self.is_batchnorm)
-        self.temb4 = UNetTimeEmbedding(time_emb_dim, filters[3])
-        self.cemb4 = UNetTimeEmbedding(class_emb_dim, filters[3])
-        self.maxpool4 = nn.MaxPool2d(kernel_size=2)
         
+        if custom_scale is None:
+            filters = [channel_scale * (2 ** i) for i in range(feature_scale + 1)]
+        else:
+            feature_scale = len(custom_scale) - 1
+            filters = custom_scale
+        
+        # Downsampling
+        filters[0] = in_channels
+        
+        for i in range(1, feature_scale):
+            base_model = SelfAttentionBlock if i == feature_scale - 1 else WideResNetBlock
+            conv = UNetDown(in_channels=filters[i - 1], 
+                            out_channels=filters[i], 
+                            is_batchnorm=self.is_batchnorm,
+                            base_model=base_model)
+            temb = UNetTimeEmbedding(time_emb_dim, filters[i])
+            cemb = UNetTimeEmbedding(class_emb_dim, filters[i])
+            maxpool = nn.MaxPool2d(kernel_size=2)
+            cross_attention = MultiHeadAttentionBlock(
+                in_channels=filters[i],
+                out_channels=filters[i]
+            )
+            
+            setattr(self, 'down_conv%d' % i, conv)
+            setattr(self, 'down_temb%d' % i, temb)
+            setattr(self, 'down_cemb%d' % i, cemb)
+            setattr(self, 'down_maxpool%d' % i, maxpool)
+            setattr(self, 'down_cross_attention%d' % i, cross_attention)
+        
+        # Bottleneck        
 
-        self.center = UNetDown(filters[3], filters[4], is_batchnorm=self.is_batchnorm)
-        self.temb_center = UNetTimeEmbedding(time_emb_dim, filters[4])
-        self.cemb_center = UNetTimeEmbedding(class_emb_dim, filters[4])
+        self.center = UNetDown(filters[-2], filters[-1], is_batchnorm=self.is_batchnorm)
+        self.temb_center = UNetTimeEmbedding(time_emb_dim, filters[-1])
+        self.cemb_center = UNetTimeEmbedding(class_emb_dim, filters[-1])
+        self.cross_attention_center = MultiHeadAttentionBlock(
+            in_channels=filters[-1],
+            out_channels=filters[-1]
+        )
 
         # upsampling
-        self.up_concat4 = UNetUp(filters[4], filters[3], is_deconv=self.is_deconv, is_batchnorm=self.is_batchnorm)
-        self.up_temb4 = UNetTimeEmbedding(time_emb_dim, filters[3])
-        self.up_cemb4 = UNetTimeEmbedding(class_emb_dim, filters[3])
-
-        self.up_concat3 = UNetUp(filters[3], filters[2], is_deconv=self.is_deconv, is_batchnorm=self.is_batchnorm)
-        self.up_temb3 = UNetTimeEmbedding(time_emb_dim, filters[2])
-        self.up_cemb3 = UNetTimeEmbedding(class_emb_dim, filters[2])
-
-        self.up_concat2 = UNetUp(filters[2], filters[1], is_deconv=self.is_deconv, 
-                                 is_batchnorm=self.is_batchnorm,
-                                 base_model=SelfAttentionBlock)
-        self.up_temb2 = UNetTimeEmbedding(time_emb_dim, filters[1])
-        self.up_cemb2 = UNetTimeEmbedding(class_emb_dim, filters[1])
-
-        self.up_concat1 = UNetUp(filters[1], filters[0], is_deconv=self.is_deconv, is_batchnorm=self.is_batchnorm)
-        self.up_temb1 = UNetTimeEmbedding(time_emb_dim, filters[0])
-        self.up_cemb1 = UNetTimeEmbedding(class_emb_dim, filters[0])
+        filters[0] = out_channels
+        
+        for i in range(1, feature_scale):
+            base_model = SelfAttentionBlock if i == feature_scale - 1 else WideResNetBlock
+            conv = UNetUp(filters[i + 1], 
+                          filters[i], 
+                          is_deconv=self.is_deconv, 
+                          is_batchnorm=self.is_batchnorm,
+                          base_model=base_model)
+            temb = UNetTimeEmbedding(time_emb_dim, filters[i])
+            cemb = UNetTimeEmbedding(class_emb_dim, filters[i])
+            cross_attention = MultiHeadAttentionBlock(
+                in_channels=filters[i],
+                out_channels=filters[i]
+            )
+            
+            setattr(self, 'up_conv%d' % i, conv)
+            setattr(self, 'up_temb%d' % i, temb)
+            setattr(self, 'up_cemb%d' % i, cemb)
+            setattr(self, 'up_cross_attention%d' % i, cross_attention)
 
         # output
-        self.outconv1 = nn.Conv2d(filters[0], self.out_channels, 3, padding=1)
-
+        self.outconv = nn.Conv2d(filters[1], self.out_channels, 3, padding=1)
+        
 
     def forward(self, inputs, t, c=None):
+        
+        B, C, H, W = inputs.shape
         t = self.time_embed(t)
         if c is not None:
             c = self.class_embed(c)
         # inputs : [B, 1, 32, 32]
+        
+        x = inputs
+        downsampling_result = [None]
+        
+        # DOWN-SAMPLING
+        for i in range(1, self.feature_scale):
+            
+            conv = getattr(self, 'down_conv%d' % i)
+            temb = getattr(self, 'down_temb%d' % i)
+            cemb = getattr(self, 'down_cemb%d' % i)
+            maxpool = getattr(self, 'down_maxpool%d' % i)
+            CA = getattr(self, 'down_cross_attention%d' % i)
+            
+            x = conv(x)
+            downsampling_result.append(x)
+            
+            B, C, H, W = x.shape
+            emb = temb(t) + (cemb(c) if c is not None else 0)
+            emb = emb.repeat(1, 1, H, W)
+            
+            x = CA(x, emb, emb)
+            x = maxpool(x)
+            
+        
+        # BOTTLENECK
+            
+        x = self.center(x)
+        B, C, H, W = x.shape
+        emb = self.temb_center(t) + (self.cemb_center(c) if c is not None else 0)
+        emb = emb.repeat(1, 1, H, W)
+        x = self.cross_attention_center(x, emb, emb)
+        
+        # UP-SAMPLING
 
-        conv1 = self.conv1(inputs)  # [B, 64, 32, 32]
-        emb1 = self.temb1(t) + (self.cemb1(c) if c is not None else 0)
-        maxpool1 = self.maxpool1(conv1 + emb1)  # [B, 64, 16, 16]
+        for i in range(self.feature_scale - 1, 0, -1):
+        
+            conv = getattr(self, 'up_conv%d' % i)
+            temb = getattr(self, 'up_temb%d' % i)
+            cemb = getattr(self, 'up_cemb%d' % i)
+            CA = getattr(self, 'up_cross_attention%d' % i)
+            
+            x = conv(x, downsampling_result[i])
+            B, C, H, W = x.shape
+            emb = temb(t) + (cemb(c) if c is not None else 0)
+            emb = emb.repeat(1, 1, H, W)
+            x = CA(x, emb, emb)  # [B, 512, 4, 4]
 
-        conv2 = self.conv2(maxpool1)  # [B, 128, 16, 16]
-        emb2 = self.temb2(t) + (self.cemb2(c) if c is not None else 0)
-        maxpool2 = self.maxpool2(conv2 + emb2)  # [B, 128, 8, 8]
-
-        conv3 = self.conv3(maxpool2)  # [B, 256, 8, 8]
-        emb3 = self.temb3(t) + (self.cemb3(c) if c is not None else 0)
-        maxpool3 = self.maxpool3(conv3 + emb3)  # [B, 256, 4, 4]
-
-        conv4 = self.conv4(maxpool3)  # [B, 512, 4, 4]
-        emb4 = self.temb4(t) + (self.cemb4(c) if c is not None else 0)
-        maxpool4 = self.maxpool4(conv4 + emb4)  # [B, 512, 2, 2]
-
-        emb_center = self.temb_center(t) + (self.cemb_center(c) if c is not None else 0)
-        center = self.center(maxpool4) + emb_center # [B, 1024, 2, 2]
-
-
-        up_emb4 = self.up_temb4(t) + (self.up_cemb4(c) if c is not None else 0)
-        up4 = self.up_concat4(center, conv4) + up_emb4  # [B, 512, 4, 4]
-
-        up_emb3 = self.up_temb3(t) + (self.up_cemb3(c) if c is not None else 0)
-        up3 = self.up_concat3(up4, conv3) + up_emb3 # [B, 256, 8, 8]
-
-        up_emb2 = self.up_temb2(t) + (self.up_cemb2(c) if c is not None else 0)
-        up2 = self.up_concat2(up3, conv2) + up_emb2 # [B, 128, 16, 16]
-
-        up_emb1 = self.up_temb1(t) + (self.up_cemb1(c) if c is not None else 0)
-        up1 = self.up_concat1(up2, conv1) + up_emb1 # [B, 64, 32, 32]
-
-        out = self.outconv1(up1)  # [B, 1, 32, 32]
-
-        return out
+        return self.outconv(x)
     
 if __name__ == '__main__':
-    unet = UNet(in_channels=3, out_channels=3, n_steps=1000)
+    unet = UNet(in_channels=3, 
+                out_channels=3, 
+                n_steps=1000,
+                custom_scale=[128, 128, 256, 256, 512, 512])
     
     B = 64
     t = torch.randint(0, 1000, (B, )) # .type(torch.float32)

@@ -112,11 +112,12 @@ class MultiHeadAttentionBlock(nn.Module):
         return heads_splitted_tensor
 
     def attention(self, q, k, v):
-        B, C, H, W = q.shape
-
-        q = q.view(B, C, H * W).transpose(1, 2)
-        k = k.view(B, C, H * W).transpose(1, 2)
-        v = v.view(B, C, H * W).transpose(1, 2)
+        
+        B, C, H, W = v.shape
+        q = q.view(B, C, q.shape[2] * q.shape[3]).transpose(1, 2)
+        k = k.view(B, C, k.shape[2] * k.shape[3]).transpose(1, 2)
+        v = v.view(B, C, v.shape[2] * v.shape[3]).transpose(1, 2)
+        
         # [B, H * W, C_in] 
 
         q = self.W_Q(q)
@@ -156,8 +157,8 @@ class MultiHeadAttentionBlock(nn.Module):
             x = self.norm(linear_projection + v)
         return x
     
-    def forward(self, k, q, v):
-        return self.attention(k, q, v)
+    def forward(self, q, k, v):
+        return self.attention(q, k, v)
     
     
     
