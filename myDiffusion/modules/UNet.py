@@ -70,7 +70,7 @@ class UNet(nn.Module):
         n_steps = 1000,
         time_emb_dim = 256,
         n_classes = 10,
-        class_emb_dim = 64,
+        class_emb_dim = 256,
         channel_scale = 64,
         feature_scale = 5,
         custom_scale = None,
@@ -87,7 +87,7 @@ class UNet(nn.Module):
         self.time_embed = PositionalEmbedding(n_steps, time_emb_dim)
 
         # conditional variable embedding
-        self.class_embed = PositionalEmbedding(n_classes, class_emb_dim)
+        self.class_embed = nn.Embedding(n_classes, class_emb_dim)
         
         if custom_scale is None:
             filters = [channel_scale * (2 ** i) for i in range(feature_scale + 1)]
@@ -181,7 +181,7 @@ class UNet(nn.Module):
             x = conv(x)
             downsampling_result.append(x)
             
-            if c is not None:
+            if c is not None and i == self.feature_scale - 1:
                 context_emb = cemb(c)
                 x = CA(x, context_emb, context_emb)
             x += temb(t)
@@ -207,9 +207,9 @@ class UNet(nn.Module):
             
             x = conv(x, downsampling_result[i])
         
-            if c is not None:
-                context_emb = cemb(c)
-                x = CA(x, context_emb, context_emb)
+            # if c is not None:
+            #     context_emb = cemb(c)
+            #     x = CA(x, context_emb, context_emb)
             x += temb(t)
 
         return self.outconv(x)
