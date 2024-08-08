@@ -90,14 +90,15 @@ class UNet(nn.Module):
         self.class_embed = PositionalEmbedding(n_classes, class_emb_dim)
         
         if custom_scale is None:
-            filters = [channel_scale * (2 ** i) for i in range(feature_scale + 1)]
+            filters = [channel_scale * (2 ** i) for i in range(feature_scale)]
         else:
-            feature_scale = len(custom_scale) - 1
+            feature_scale = len(custom_scale)
             filters = custom_scale
         self.feature_scale = feature_scale
         
         # Downsampling
-        filters[0] = in_channels
+        filters.insert(0, in_channels)        
+        print(filters)
         
         for i in range(1, feature_scale):
             base_model = SelfAttentionBlock if i == feature_scale - 1 else WideResNetBlock
@@ -218,7 +219,9 @@ if __name__ == '__main__':
     unet = UNet(in_channels=3, 
                 out_channels=3, 
                 n_steps=1000,
-                custom_scale=[128, 128, 256, 256, 512, 512])
+                # feature_scale=5
+                custom_scale=[128, 128, 256, 256, 512, 512]
+                )
     
     B = 1
     t = torch.randint(0, 1000, (B, )) # .type(torch.float32)
