@@ -70,7 +70,7 @@ class UNet(nn.Module):
         n_steps = 1000,
         time_emb_dim = 256,
         n_classes = 10,
-        class_emb_dim = 256,
+        class_emb_dim = 64,
         channel_scale = 64,
         feature_scale = 5,
         custom_scale = None,
@@ -87,7 +87,7 @@ class UNet(nn.Module):
         self.time_embed = PositionalEmbedding(n_steps, time_emb_dim)
 
         # conditional variable embedding
-        self.class_embed = nn.Embedding(n_classes, class_emb_dim)
+        self.class_embed = PositionalEmbedding(n_classes, class_emb_dim)
         
         if custom_scale is None:
             filters = [channel_scale * (2 ** i) for i in range(feature_scale + 1)]
@@ -220,7 +220,7 @@ if __name__ == '__main__':
                 n_steps=1000,
                 custom_scale=[128, 128, 256, 256, 512, 512])
     
-    B = 64
+    B = 1
     t = torch.randint(0, 1000, (B, )) # .type(torch.float32)
     x = torch.randn(B, 3, 32, 32)
     c = torch.randint(0, 10, (B, ))
