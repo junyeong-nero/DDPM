@@ -112,6 +112,7 @@ class ReverseDecoder:
         self,
         noise_data,
         t,
+        predict_noise = None,
         c = None,
         w = 1,
         t_1 = None
@@ -124,7 +125,8 @@ class ReverseDecoder:
         alpha_t = self.noise_schedule._alphas[t]
         alpha_t_1 = self.noise_schedule._alphas[t_1]
 
-        predict_noise = (1 + w) * self.g(noise_data, t, c) - w * self.g(noise_data, t)
+        if predict_noise is None:
+            predict_noise = (1 + w) * self.g(noise_data, t, c) - w * self.g(noise_data, t)
         V1 = torch.sqrt(alpha_t_1) * ((noise_data - torch.sqrt(1 - alpha_t) * predict_noise) / torch.sqrt(alpha_t))
         V2 = torch.sqrt(1 - alpha_t_1) * predict_noise
 

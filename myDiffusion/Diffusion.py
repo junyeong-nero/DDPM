@@ -105,9 +105,11 @@ class MyDiffusion:
 
             loss = self.criterion(outputs, epsilon)
             
+            # predict_noise = (1 + w) * self.g(noise_data, t, c) - w * self.g(noise_data, t)
             # [B, 1, 32, 32]
             sampling_loss = self.decoder.DDIM_sampling_step(
                 noise_data=noised_image,
+                predict_noise=outputs,
                 t=t,
                 c=c,
                 w=w

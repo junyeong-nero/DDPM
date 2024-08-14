@@ -32,7 +32,7 @@ class SamplingWeights():
         self.optimizer = optim.Adam(self.weights.parameters(), lr=learning_rate)
         
     def get_weights(self):
-        return self.weights.linear.weight
+        return self.weights.linear.weight.clone().detach()
         
     def result_convert(self, timestep, loss_item):
         B = timestep.shape[0]
@@ -40,7 +40,7 @@ class SamplingWeights():
         for i in range(B):
             result[i][timestep[i]] = loss_item[i]
             
-        print(result)
+        # print(result)
         return result
     
     def train_one_epoch(self, timestep, loss_item):
