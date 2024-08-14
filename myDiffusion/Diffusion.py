@@ -113,8 +113,8 @@ class MyDiffusion:
                 w=w
             )
             
-            
-            self.sampling_weights.train_one_epoch(t, )
+            sampling_loss = torch.linalg.matrix_norm(sampling_loss, noised_image)
+            self.sampling_weights.train_one_epoch(t, sampling_loss)
 
             # Adjust learning weights
             self.optimizer.zero_grad()
