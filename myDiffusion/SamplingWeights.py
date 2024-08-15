@@ -36,11 +36,11 @@ class SamplingWeights():
         
     def result_convert(self, timestep, loss_item):
         B = timestep.shape[0]
-        result = torch.zeros((B, self.n_timesteps, 1))
+        result = self.get_weights().unsqueeze(0).repeat((B, 1, 1))
         for i in range(B):
             result[i][timestep[i]] = loss_item[i]
             
-        # print(result)
+        # print(result.shape)
         return result
     
     def train_one_epoch(self, timestep, loss_item):
@@ -62,6 +62,8 @@ if __name__ == "__main__":
     S = SamplingWeights(n_timesteps=10)
     B = 64
     t = torch.randint(0, 10, (B, ))
-    v = torch.randint(0, 10, (B, 1))
-    S.train_one_epoch(t, v)
+    # v = torch.randint(0, 10, (B, 1))
+    v = torch.zeros((B, 1))
+    for _ in range(100):
+        S.train_one_epoch(t, v)
     print(S.get_weights())
