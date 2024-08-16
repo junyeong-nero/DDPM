@@ -1,12 +1,20 @@
 import torch
-import torch.nn as nn
-import torch.optim as optim
 
-BATCH = 8
-torch.manual_seed(0)
+A = torch.randn((32, 3, 32, 32))
+B = torch.randn((32, 3, 32, 32))
+C = torch.linalg.matrix_norm(A - B)
+print(C.shape)
 
-A = torch.randn(BATCH, 1, 32, 32)
-B = torch.randn(BATCH, 1, 32, 32)
+# TIME_STEPS = 1000
+# extract_time_step = 100
 
-norm = torch.linalg.matrix_norm(A - B)
-print(norm.shape)
+# diff_norm = reversed(torch.load("DDIM_origin.pt", weights_only=False))
+# gradient = []
+# for i in range(1, len(diff_norm)):
+#     gradient.append(diff_norm[i] - diff_norm[i - 1])
+    
+# gradient = torch.tensor(gradient)
+# print(gradient)
+
+# THRESHOLD_INFLECTION = int(torch.argmin(gradient).item() * (TIME_STEPS / extract_time_step))
+# print(THRESHOLD_INFLECTION)
