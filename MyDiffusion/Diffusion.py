@@ -3,11 +3,11 @@ import random
 import torch
 from torch.utils.data import DataLoader
 
-from modules.UNet import UNet
-from ForwardEncoder import ForwardEncoder
-from ReverseDecoder import ReverseDecoder
-from NoiseSchedule import NoiseSchedule
-from SamplingWeights import SamplingWeights
+from MyDiffusion.modules.UNet import UNet
+from MyDiffusion.ForwardEncoder import ForwardEncoder
+from MyDiffusion.ReverseDecoder import ReverseDecoder
+from MyDiffusion.NoiseSchedule import NoiseSchedule
+from MyDiffusion.SamplingWeights import SamplingWeights
 
 class Diffusion:
 
@@ -34,12 +34,14 @@ class Diffusion:
         self.device = device
 
         # UNet 
-        self.g = UNet(in_channels=in_channels,
-                      out_channels=out_channels,
-                      n_steps=n_timesteps,
-                      channel_scale=channel_scale,
-                      num_channel_scale=num_channle_scale,
-                      custom_channel_scale=custom_channel_scale)
+        self.g = UNet(
+            in_channels = in_channels,
+            out_channels=out_channels,
+            n_steps=n_timesteps,
+            channel_scale=channel_scale,
+            num_channel_scale=num_channle_scale,
+            custom_channel_scale=custom_channel_scale
+        )
 
         self.g = self.g.to(device)
 
@@ -50,8 +52,8 @@ class Diffusion:
 
         # Noise Scheduler
         self.noise_schedule = NoiseSchedule(
-            n_timesteps=n_timesteps,
-            device=device
+            n_timesteps = n_timesteps,
+            device = device
             # init_type="exponential",
         )
 
@@ -275,9 +277,3 @@ class Diffusion:
             result.append((inputs, noised_image, denoised_image))
 
         return result
-    
-    
-if __name__ == '__main__':
-    model = Diffusion(100)
-    
-    

@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from layer import SelfAttentionBlock, PositionalEmbedding, WideResNetBlock, MultiHeadAttentionBlock
+from MyDiffusion.modules.layer import SelfAttentionBlock, PositionalEmbedding, WideResNetBlock, MultiHeadAttentionBlock
 
 class UNetDown(nn.Module):
 
