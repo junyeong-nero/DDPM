@@ -219,13 +219,14 @@ class UNet(nn.Module):
 
         return self.outconv(x)
     
+
 if __name__ == '__main__':
-    unet = UNet(in_channels=3, 
-                out_channels=3, 
-                n_steps=1000,
-                # feature_scale=5
-                custom_scale=[128, 128, 256, 256, 512, 512]
-                )
+    unet = UNet(
+        in_channels = 3, 
+        out_channels = 3, 
+        n_steps = 1000,
+        custom_channel_scale = [128, 128, 256, 256, 512, 512]
+    )
     
     B = 1
     t = torch.randint(0, 1000, (B, )) # .type(torch.float32)

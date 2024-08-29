@@ -4,11 +4,11 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 
-from myDiffusion.modules import UNet
-from myDiffusion.encoder.ForwardEncoder import ForwardEncoder
-from myDiffusion.decoder.ReverseDecoder import ReverseDecoder
-from myDiffusion.scheduler.NoiseSchedule import NoiseSchedule
-from myDiffusion.SamplingWeights import SamplingWeights
+from src.modules import UNet
+from src.ForwardEncoder import ForwardEncoder
+from src.ReverseDecoder import ReverseDecoder
+from src.scheduler.NoiseSchedule import NoiseSchedule
+from src.SamplingWeights import SamplingWeights
 
 class MyDiffusion:
 
