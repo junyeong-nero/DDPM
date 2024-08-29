@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader
 from src.modules import UNet
 from src.ForwardEncoder import ForwardEncoder
 from src.ReverseDecoder import ReverseDecoder
-from src.scheduler.NoiseSchedule import NoiseSchedule
+from src.NoiseSchedule import NoiseSchedule
 from src.SamplingWeights import SamplingWeights
 
 class MyDiffusion:
