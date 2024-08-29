@@ -5,11 +5,11 @@ class ForwardEncoder:
     def __init__(self, noise_schedule) -> None:
         self.noise_schedule = noise_schedule
         
-    def noise(self, data, time_step):
+    def noise(self, data, timestep):
         # data : [B, 1, 28, 28]
 
         # alpha : [B, 1, 1, 1]
-        alpha = self.noise_schedule._alphas[time_step]
+        alpha = self.noise_schedule._alphas[timestep]
         alpha = alpha.reshape(-1, 1, 1, 1)
         
         # torch.randn ~ N(0, 1)
