@@ -22,6 +22,7 @@ MNIST 데이터셋을 이용하여 diffusion model을 학습시키는 토이 프
 ### Result
 
 - DDIM with $\mathrm{len}(\tau) = 10$
+- $w$ = 1 (CFG sampling ratio)
 
 ![result1](./images/result.png)
 ![result2](./images/result2.png)
