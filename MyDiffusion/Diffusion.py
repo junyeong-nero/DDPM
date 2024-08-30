@@ -1,13 +1,13 @@
-import tqdm
 import random
 import torch
+from tqdm import tqdm
 from torch.utils.data import DataLoader
 
 from MyDiffusion.modules.UNet import UNet
-from MyDiffusion.ForwardEncoder import ForwardEncoder
-from MyDiffusion.ReverseDecoder import ReverseDecoder
-from MyDiffusion.NoiseSchedule import NoiseSchedule
-from MyDiffusion.SamplingWeights import SamplingWeights
+from MyDiffusion.forward_encoder import ForwardEncoder
+from MyDiffusion.reverse_decoder import ReverseDecoder
+from MyDiffusion.noise_sheduler import NoiseSchedule
+from MyDiffusion.sampling_weights import SamplingWeights
 
 class Diffusion:
 

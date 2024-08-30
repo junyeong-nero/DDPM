@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+
 from MyDiffusion.modules.layer import SelfAttentionBlock, PositionalEmbedding, WideResNetBlock, MultiHeadAttentionBlock
 
 class UNetDown(nn.Module):
@@ -229,7 +230,7 @@ if __name__ == '__main__':
     )
     
     B = 1
-    t = torch.randint(0, 1000, (B, )) # .type(torch.float32)
+    t = torch.randint(0, 1000, (B, ))
     x = torch.randn(B, 3, 32, 32)
     c = torch.randint(0, 10, (B, ))
     output = unet(x, t)
