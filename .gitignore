@@ -1,3 +1,6 @@
+# MNIST dataset path
+data/
+
 *.log
 *.pt
 *.pyc
